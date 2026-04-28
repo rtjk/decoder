@@ -1,11 +1,26 @@
-#include <cpucycles.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <immintrin.h>
+#include <stdalign.h>
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define TESTS 50000
+#define TESTS 100
+#define ARR_SIZE 99999
+
+////////////////////////////////////////////////////////////////////////////////
+
+/* benchmarking */
+#ifdef BENCH
+#include <cpucycles.h>
+#define CPUCYCLES() cpucycles()
+#define RUNS TESTS
+/* profiling */
+#else
+#define CPUCYCLES() 0
+#define RUNS 1
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,24 +39,26 @@ int main() {
 
     uint8_t checksum = 0;
 
-    uint8_t arr[1024];
+    uint8_t arr[ARR_SIZE];
 
-    for (int i = 0; i < TESTS; i++) {
+    for (int i = 0; i < RUNS; i++) {
 
-        count_1 = cpucycles();
+        count_1 = CPUCYCLES();
         u8_arr_rand(arr, sizeof(arr));
-        count_2 = cpucycles();
+        count_2 = CPUCYCLES();
 
         sum += count_2 - count_1;
 
-        checksum += arr[0];
+        for(size_t j = 0; j < sizeof(arr); j++) {
+            checksum += arr[j];
+        }
     }
-    printf("[%d] %llu\n", checksum % 100, sum / TESTS);
+    printf("[%d] %lu\n", checksum % 100, sum / RUNS);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 /*
-rm -f main.o; gcc -o main.o main.c -march=native -O3 -lcpucycles
+rm -f main.o; gcc -o main.o main.c -march=native -O3 -lcpucycles -DBENCH=1
 taskset --cpu-list 0 ./main.o
 */
