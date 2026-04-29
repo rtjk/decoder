@@ -35,6 +35,11 @@
 #define SLACK_EXTRACT(digit_to_extract)  (digit_to_extract >> (P%DIGIT_SIZE_b) )
 #define LO_SHIFT_AMT_BITS (BITS_TO_REPRESENT(DIGIT_SIZE_b-1))
 #define HI_SHIFT_AMT_BITS (BITS_TO_REPRESENT(P) - LO_SHIFT_AMT_BITS)
+#define INVALID_POS_VALUE (P)
+#define SIGNED_DIGIT int64_t
+#define NUM_BITS_GF2X_MODULUS (P+1)
+#define NUM_DIGITS_GF2X_MODULUS ((P+1+DIGIT_SIZE_b-1)/DIGIT_SIZE_b)
+#define MSb_POSITION_IN_MSB_DIGIT_OF_MODULUS (P-DIGIT_SIZE_b*(NUM_DIGITS_GF2X_MODULUS-1))
 
 #define N_REGS ((V + 7) / 8)
 
@@ -53,5 +58,6 @@ typedef struct {
 #endif
 
 #define RESTRICT
+#define CONST
 
 ////////////////////////////////////////////////////////////////////////////////

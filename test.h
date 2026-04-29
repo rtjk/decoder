@@ -16,20 +16,8 @@
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
-void transposeHPosOnes(POSITION_T HtrPosOnes[N0][V], /* output*/
-                       POSITION_T const HPosOnes[N0][V]
-                      )
-{
-   for (int i = 0; i < N0; i++) {
-      /* Obtain directly the sparse representation of the block of H */
-      for (int k = 0; k < V; k++) {
-         HtrPosOnes[i][k] = (P - HPosOnes[i][k])  % P; /* transposes indexes */
-      }// end for k
-   }
-}
-////////////////////////////////////////////////////////////////////////////////
 static INLINE
-void update_counters_after_flip(uint8_t *sigma, const POSITION_T HtrPosOnes[N0][V], const POSITION_T  HPosOnes[N0][V], POSITION_T pos_flip, DIGIT* syndrome){
+void update_counters_after_flip(uint8_t *sigma, CONST POSITION_T HtrPosOnes[N0][V], CONST POSITION_T  HPosOnes[N0][V], POSITION_T pos_flip, DIGIT* syndrome){
     int b = pos_flip >= P ? 1 : 0;
     POSITION_T local_pos = pos_flip - b * P;
     __m256i vp   = _mm256_set1_epi32((uint32_t)P);
@@ -89,7 +77,7 @@ void update_counters_after_flip(uint8_t *sigma, const POSITION_T HtrPosOnes[N0][
 }
 ////////////////////////////////////////////////////////////////////////////////
 static INLINE
-void gf2x_xor(DIGIT Res[], const DIGIT A[], const DIGIT B[])
+void gf2x_xor(DIGIT Res[], CONST DIGIT A[], CONST DIGIT B[])
 {
     unsigned i;
     for (i = 0; i < NUM_DIGITS_GF2X_ELEMENT/4; i++) {
@@ -103,7 +91,7 @@ void gf2x_xor(DIGIT Res[], const DIGIT A[], const DIGIT B[])
 }
 ////////////////////////////////////////////////////////////////////////////////
 static INLINE
-void gf2x_toggle_coeff(DIGIT poly[], const unsigned int exponent)
+void gf2x_toggle_coeff(DIGIT poly[], CONST unsigned int exponent)
 {
    /* Reverse the index, this because the polynomial is saved in big endian */
    int straightIdx = (NUM_DIGITS_GF2X_ELEMENT*DIGIT_SIZE_b -1) - exponent;
@@ -114,7 +102,7 @@ void gf2x_toggle_coeff(DIGIT poly[], const unsigned int exponent)
    poly[digitIdx] = poly[digitIdx] ^ mask;
 }
 ////////////////////////////////////////////////////////////////////////////////
-// uint32_t argmax_avx512(const uint8_t* arr, size_t len)
+// uint32_t argmax_avx512(CONST uint8_t* arr, size_t len)
 // {
 //     uint32_t max_idx = 0;
 //     if (arr == NULL || len == 0)
@@ -130,7 +118,7 @@ void gf2x_toggle_coeff(DIGIT poly[], const unsigned int exponent)
 //     }
 //     return max_idx;
 // }
-POSITION_T argmax_avx512(const uint8_t* arr, size_t len) {
+POSITION_T argmax_avx512(CONST uint8_t* arr, size_t len) {
     /* ------------------------------------------------- */
     /*  Find Max (AVX2)                                  */
     /* ------------------------------------------------- */
@@ -138,7 +126,7 @@ POSITION_T argmax_avx512(const uint8_t* arr, size_t len) {
     __m256i max_vec = _mm256_setzero_si256();
 
     for (; i <= len - 32; i += 32) {
-        __m256i v = _mm256_loadu_si256((const __m256i*)&arr[i]);
+        __m256i v = _mm256_loadu_si256((CONST __m256i*)&arr[i]);
         max_vec = _mm256_max_epu8(max_vec, v);
     }
 
@@ -162,7 +150,7 @@ POSITION_T argmax_avx512(const uint8_t* arr, size_t len) {
     __m256i vmax = _mm256_set1_epi8((char)max_val);
 
     for (i = 0; i <= len - 32; i += 32) {
-        __m256i v = _mm256_loadu_si256((const __m256i*)&arr[i]);
+        __m256i v = _mm256_loadu_si256((CONST __m256i*)&arr[i]);
         __m256i cmp = _mm256_cmpeq_epi8(v, vmax);
         int mask = _mm256_movemask_epi8(cmp);
 
@@ -177,7 +165,7 @@ POSITION_T argmax_avx512(const uint8_t* arr, size_t len) {
 
     return (POSITION_T)-1;
 }
-// POSITION_T argmax_avx512(const uint8_t* arr, size_t len) {
+// POSITION_T argmax_avx512(CONST uint8_t* arr, size_t len) {
 //     /* ------------------------------------------------- */
 //     /*  Find Max                                         */
 //     /* ------------------------------------------------- */
@@ -228,11 +216,11 @@ POSITION_T argmax_avx512(const uint8_t* arr, size_t len) {
 //     return (POSITION_T)-1;
 // }
 ////////////////////////////////////////////////////////////////////////////////
-void compute_counters_sliced(const bs_operand_t* bs, uint8_t* ctrs, int total_elements, int bitsliced_width) {
+void compute_counters_sliced(CONST bs_operand_t* bs, uint8_t* ctrs, int total_elements, int bitsliced_width) {
    memset(ctrs, 0, total_elements * sizeof(uint8_t));
    for (int i = 0; i < N0; i++) {
       // global offset 
-      const bs_operand_t* bs_block = bs + i * NUM_SLICES_GF2X_ELEMENT;
+      CONST bs_operand_t* bs_block = bs + i * NUM_SLICES_GF2X_ELEMENT;
       for (int j = 0; j < P; j++) {
          // inversione dell'ordine dato che il polinomio è rappresentato in big endian mentre il counter array considera le posizioni in little endian
          int poly_idx    = (P - 1) - j;
@@ -309,7 +297,7 @@ void word_level_shift_VT(DIGIT *RESTRICT shifted_param,
 static INLINE
 void gf2x_mod_mul_monom(DIGIT shifted[],
                         POSITION_T shift_amt,
-                        const DIGIT to_shift[])
+                        CONST DIGIT to_shift[])
 {
    DIGIT mask;
    /*shift_amt is split bitwise :  |------------------shift_amt------------------|
@@ -364,7 +352,7 @@ void gf2x_mod_mul_monom(DIGIT shifted[],
 }
 ////////////////////////////////////////////////////////////////////////////////
 static INLINE
-void lift_mul_dense_to_sparse_CT(bs_operand_t bs_res[], const DIGIT dense[], const POSITION_T sparse[], unsigned int nPos){
+void lift_mul_dense_to_sparse_CT(bs_operand_t bs_res[], CONST DIGIT dense[], CONST POSITION_T sparse[], unsigned int nPos){
    SLICE_TYPE tmp[NUM_SLICES_GF2X_ELEMENT];
    for(int i =0; i< nPos; i++) {
 // #if (defined HIGH_PERFORMANCE_X86_64)
@@ -394,12 +382,12 @@ int population_count(DIGIT upc[])
 // #elif defined(DIGIT_IS_UINT)
 //       ret += __builtin_popcount((unsigned int) (upc[i]));
 // #elif defined(DIGIT_IS_UCHAR)
-//       const unsigned char split_lookup[] = {
+//       CONST unsigned char split_lookup[] = {
 //          0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4
 //       };
 //       ret += split_lookup[upc[i]&0xF] + split_lookup[upc[i]>>4];
 // #else
-// #error "Missing implementation for population_count(...) \
+// #error "Missing implementation for population_count(...)
 // with this CPU word bitsize !!! "
 // #endif
    }
@@ -407,7 +395,7 @@ int population_count(DIGIT upc[])
 } // end population_count
 ////////////////////////////////////////////////////////////////////////////////
 static INLINE
-void gf2x_set_coeff(DIGIT poly[], const unsigned int exponent, DIGIT value)
+void gf2x_set_coeff(DIGIT poly[], CONST unsigned int exponent, DIGIT value)
 {
    int straightIdx = (NUM_DIGITS_GF2X_ELEMENT*DIGIT_SIZE_b -1) - exponent;
    int digitIdx = straightIdx / DIGIT_SIZE_b;
@@ -423,7 +411,7 @@ void gf2x_set_coeff(DIGIT poly[], const unsigned int exponent, DIGIT value)
 ////////////////////////////////////////////////////////////////////////////////
 static INLINE
 void gf2x_mod_densify_VT(DIGIT dense[NUM_DIGITS_GF2X_ELEMENT],
-                         const POSITION_T exponent[],
+                         CONST POSITION_T exponent[],
                          int num_exponents)
 {
    for(int j=0; j<num_exponents; j++) {
@@ -433,8 +421,8 @@ void gf2x_mod_densify_VT(DIGIT dense[NUM_DIGITS_GF2X_ELEMENT],
 ////////////////////////////////////////////////////////////////////////////////
 int bf_decoding_CT(
     DIGIT out[], 
-    const POSITION_T HtrPosOnes[N0][V], 
-    const POSITION_T HPosOnes[N0][V], 
+    CONST POSITION_T HtrPosOnes[N0][V], 
+    CONST POSITION_T HPosOnes[N0][V], 
     DIGIT privateSyndrome[]
 ){
     DIGIT HTr[N0][NUM_DIGITS_GF2X_ELEMENT] = {{0}};
@@ -510,4 +498,158 @@ int bf_decoding_CT(
    while (check < NUM_DIGITS_GF2X_ELEMENT && privateSyndrome[check++] == 0);
    //return (check == NUM_DIGITS_GF2X_ELEMENT);
    return 1;     
+}
+
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+static inline void gf2x_add(CONST int nr, DIGIT Res[],
+                            CONST int na, CONST DIGIT A[],
+                            CONST int nb, CONST DIGIT B[])
+{
+   for (unsigned i = 0; i < nr; i++)
+      Res[i] = A[i] ^ B[i];
+}
+////////////////////////////////////////////////////////////////////////////////
+void right_bit_shift_n(CONST int length, DIGIT in[], CONST int amount)
+{
+   if ( amount == 0 ) return;
+   int j;
+   DIGIT mask;
+   mask = ((DIGIT)0x01 << amount) - 1;
+   for (j = length-1; j > 0 ; j--) {
+      in[j] >>= amount;
+      in[j] |=  (in[j-1] & mask) << (DIGIT_SIZE_b - amount);
+   }
+   in[j] >>= amount;
+}
+////////////////////////////////////////////////////////////////////////////////
+void gf2x_mod(DIGIT out[],
+              CONST int nin, CONST DIGIT in[])
+{
+   DIGIT aux[NUM_DIGITS_GF2X_ELEMENT+1];
+   memcpy(aux, in, (NUM_DIGITS_GF2X_ELEMENT+1)*DIGIT_SIZE_B);
+#if MSb_POSITION_IN_MSB_DIGIT_OF_MODULUS != 0
+   right_bit_shift_n(NUM_DIGITS_GF2X_ELEMENT+1, aux,
+                     MSb_POSITION_IN_MSB_DIGIT_OF_MODULUS);
+#endif
+   gf2x_add(NUM_DIGITS_GF2X_ELEMENT,out,
+            NUM_DIGITS_GF2X_ELEMENT,aux+1,
+            NUM_DIGITS_GF2X_ELEMENT,in+NUM_DIGITS_GF2X_ELEMENT);
+#if MSb_POSITION_IN_MSB_DIGIT_OF_MODULUS != 0
+   out[0] &=  ((DIGIT)1 << MSb_POSITION_IN_MSB_DIGIT_OF_MODULUS) - 1 ;
+#endif
+
+}
+////////////////////////////////////////////////////////////////////////////////
+void gf2x_fmac(DIGIT Res[],
+               CONST DIGIT operand[],
+               CONST unsigned int shiftAmt)
+{
+   unsigned int digitShift = shiftAmt / DIGIT_SIZE_b;
+   unsigned int inDigitShift= shiftAmt % DIGIT_SIZE_b;
+   DIGIT tmp,prevLo=0;
+   int i;
+   SIGNED_DIGIT inDigitShiftMask = ((SIGNED_DIGIT) (inDigitShift>0) << (DIGIT_SIZE_b-1)) >> (DIGIT_SIZE_b-1);
+   for(i = NUM_DIGITS_GF2X_ELEMENT-1; i>=0 ; i--) {
+      tmp = operand[i];
+      Res[NUM_DIGITS_GF2X_ELEMENT+i-digitShift] ^= prevLo | (tmp << inDigitShift);
+      prevLo = (tmp >> (DIGIT_SIZE_b - inDigitShift)) & inDigitShiftMask;
+   }
+   Res[NUM_DIGITS_GF2X_ELEMENT+i-digitShift] ^= prevLo;
+}
+////////////////////////////////////////////////////////////////////////////////
+static inline void gf2x_mod_add(DIGIT Res[], CONST DIGIT A[], CONST DIGIT B[])
+{
+   gf2x_add(NUM_DIGITS_GF2X_ELEMENT, Res,
+            NUM_DIGITS_GF2X_ELEMENT, A,
+            NUM_DIGITS_GF2X_ELEMENT, B);
+}
+////////////////////////////////////////////////////////////////////////////////
+void gf2x_mod_mul_dense_to_sparse(DIGIT Res[],
+                                  CONST DIGIT dense[],
+                                  CONST POSITION_T sparse[],
+                                  unsigned int nPos)
+{
+   DIGIT resDouble[2*NUM_DIGITS_GF2X_ELEMENT] = {0};
+   for (unsigned int i = 0; i < nPos; i++) {
+      if (sparse[i] != INVALID_POS_VALUE) {
+         gf2x_fmac(resDouble, dense,sparse[i]);
+      }
+   }
+   gf2x_mod(Res, 2*NUM_DIGITS_GF2X_ELEMENT, resDouble);
+}
+////////////////////////////////////////////////////////////////////////////////
+void densify_error(DIGIT dense[N0*NUM_DIGITS_GF2X_ELEMENT], POSITION_T sparse[NUM_ERRORS_T]) {
+   memset(dense, 0x00, N0*NUM_DIGITS_GF2X_ELEMENT*DIGIT_SIZE_B);
+   for (int j = 0; j < NUM_ERRORS_T; j++) {
+      int polyIndex = (sparse[j] / P);
+      int exponent = sparse[j] % P;
+      gf2x_set_coeff( dense + NUM_DIGITS_GF2X_ELEMENT*polyIndex, exponent,
+                      ( (DIGIT) 1));
+   }
+}
+////////////////////////////////////////////////////////////////////////////////
+// void compute_syndrome(DIGIT s[NUM_DIGITS_GF2X_ELEMENT], DIGIT *H_dense, POSITION_T e_sparse[NUM_ERRORS_T], DIGIT e_dense[N0*NUM_DIGITS_GF2X_ELEMENT]) {
+//    // from encrypt_niederreiter()
+//    int i;
+//    DIGIT saux[NUM_DIGITS_GF2X_ELEMENT];
+//    unsigned int filled;
+//    memset(s, 0x00, NUM_DIGITS_GF2X_ELEMENT*DIGIT_SIZE_B);
+//    POSITION_T blkErrorPos[NUM_ERRORS_T];
+//    for (i = 0; i < N0-1; i++) {
+//       filled=0;
+//       for (int j = 0 ; j < NUM_ERRORS_T; j ++) {
+//          if(e_sparse[j] / P == i) {
+//             blkErrorPos[filled] =  e_sparse[j] % P;
+//             filled++;
+//          }
+//       }
+//       gf2x_mod_mul_dense_to_sparse(saux,
+//                                    H_dense + i*NUM_DIGITS_GF2X_ELEMENT,
+//                                    blkErrorPos,
+//                                    filled);
+//       gf2x_mod_add(s, s, saux);
+//    }   // end for
+//    gf2x_mod_add(s, s, e_dense+(N0-1)*NUM_DIGITS_GF2X_ELEMENT);
+// }
+// POSITION_T shift(POSITION_T h, POSITION_T i){
+//     POSITION_T pos  = h + i;
+//     POSITION_T mask = -(pos >= (POSITION_T)P);
+//     return pos - ((POSITION_T)P & mask);
+// }
+// #define FLIP_BIT(arr, i) do { (arr)[(i) >> 6] ^=  (1ULL << ((i) & 63)); } while(0)
+// #define S_WORDS ((P + 63) / 64) /* Number of words to represent the syndrome with an array of uint_64 */
+// void compute_syndrome(DIGIT syndrome[], POSITION_T H[2][V], POSITION_T* error){
+//     memset(syndrome,0, S_WORDS*DIGIT_SIZE_B);
+//     // for each index inside error support
+//     for (int i=0; i<NUM_ERRORS_T; i++) {
+//         // set position
+//         POSITION_T pos = error[i];
+//         // determinate in with circulant we are
+//         int b = (pos >= P);
+//         POSITION_T local_pos = pos - (b * P);
+
+//         for(int j = 0; j < V; j++){
+//             POSITION_T pos_to_flip = shift(H[b][j], local_pos);
+//             FLIP_BIT(syndrome, pos_to_flip);
+//         }
+//     }
+
+// }
+////////////////////////////////////////////////////////////////////////////////
+void transposeHPosOnes(POSITION_T HtrPosOnes[N0][V], /* output*/
+                       POSITION_T CONST HPosOnes[N0][V]
+                      )
+{
+   for (int i = 0; i < N0; i++) {
+      /* Obtain directly the sparse representation of the block of H */
+      for (int k = 0; k < V; k++) {
+         HtrPosOnes[i][k] = (P - HPosOnes[i][k])  % P; /* transposes indexes */
+      }// end for k
+   }
 }
