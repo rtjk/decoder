@@ -1,5 +1,6 @@
 hotspot
 perf.*
+callgrind.*
 
 # Created by https://www.toptal.com/developers/gitignore/api/linux,c,python,visualstudiocode,latex,cmake,valgrind,macos
 # Edit at https://www.toptal.com/developers/gitignore?templates=linux,c,python,visualstudiocode,latex,cmake,valgrind,macos
