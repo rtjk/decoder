@@ -9,10 +9,10 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define P (10883)
 #define N0 (2)
-#define V (71)
-#define NUM_ERRORS_T (133)
+#define P (6547)
+#define V (45)
+#define NUM_ERRORS_T (82)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -59,5 +59,16 @@ typedef struct {
 
 #define RESTRICT
 #define CONST
+
+#ifdef DEBUG
+#define DEBUG_PRINT(...) printf(__VA_ARGS__)
+#else
+#define DEBUG_PRINT(...) ((void)0)
+#endif
+
+#define ERROR(...) do { printf("\n\033[0;31m [!] %s: ", __func__); printf(__VA_ARGS__); printf("\033[0m\n\n"); exit(1); } while(0)
+
+#define BE 0                // big endian
+#define LE 1                // little endian
 
 ////////////////////////////////////////////////////////////////////////////////

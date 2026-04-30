@@ -12,7 +12,7 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define TESTS 100
+#define TESTS 1000
 #define SEED 42
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -22,18 +22,13 @@
 #include <cpucycles.h>
 #define CPUCYCLES() cpucycles()
 #define RUNS TESTS
-/* profiling */
+/* profiling and testing */
 #else
 #define CPUCYCLES() 0
 #define RUNS 1
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////
-
-/* fill an array of n bytes with random values */
-void u8_arr_rand(uint8_t *arr, size_t n) {
-    for (size_t i = 0; i < n; i++) arr[i] = rand() % 256;
-}
 
 /* fill an array of n 32-bit words with random values modulo m */
 void u32_arr_rand_mod(uint32_t *arr, size_t n, size_t m) {
@@ -42,7 +37,7 @@ void u32_arr_rand_mod(uint32_t *arr, size_t n, size_t m) {
 
 /* fill an array of n 32-bit words with unique random values modulo m */
 void u32_arr_rand_unique(uint32_t *arr, size_t n, size_t m) {
-    if (n > m) return;
+    if (n > m) ERROR("n > m");
     size_t placed = 0;
     while (placed < n) {
         uint32_t r = rand() % m;
@@ -55,6 +50,30 @@ void u32_arr_rand_unique(uint32_t *arr, size_t n, size_t m) {
             placed++;
         }
     }
+}
+
+/* print an array of n 32-bit words in decimal format */
+void u32_arr_print_dec(const uint32_t *arr, size_t n) {
+    for (size_t i = 0; i < n; i++) printf("%lu ", (uint64_t)arr[i]);
+    printf("\n");
+}
+
+/* print an array of n 64-bit words in binary format
+ * bits in a byte are BE
+ * bytes in a word can be BE or LE
+ */
+void u64_arr_print_bin(const uint64_t *arr, size_t n, uint8_t endianness) {
+    for (size_t i = 0; i < n; i++) {
+        uint64_t value = arr[i];
+        if (endianness == LE) value = __builtin_bswap64(value);
+        for (int bit = 64 - 1; bit >= 0; bit--) {
+            uint64_t b = (value >> bit) & 1;
+            printf("%lu", (uint64_t)b);
+        }
+        if (endianness == LE) value = __builtin_bswap64(value);
+        printf(" ");
+    }
+    printf("\n");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -90,8 +109,10 @@ int main() {
         u32_arr_rand_unique(e_in_sparse, NUM_ERRORS_T, N0*P);
         densify_error(e_in_dense, e_in_sparse);
         /* compute syndrome */
-        // compute_syndrome(s_dense, (uint64_t *)H_dense, e_in_sparse, e_in_dense);
-        s_dense[0] = 1;
+        compute_syndrome(s_dense, H_dense[0], e_in_sparse, e_in_dense);
+        u64_arr_print_bin(s_dense, NUM_DIGITS_GF2X_ELEMENT, BE);
+        
+        // s_dense[0] = 1;
 
         /* decode */
         count_1 = CPUCYCLES();
@@ -99,8 +120,8 @@ int main() {
         count_2 = CPUCYCLES();
 
         /* compare error vectors */
-        // uint8_t cmp = memcmp(e_out_dense, e_in_dense, N0*NUM_DIGITS_GF2X_ELEMENT*sizeof(uint64_t));
-        // assert(cmp == 0);
+        uint8_t cmp = memcmp(e_out_dense, e_in_dense, N0*NUM_DIGITS_GF2X_ELEMENT*sizeof(uint64_t));
+        if (cmp != 0) ERROR("e_in != e_out");
 
         sum += count_2 - count_1;
         checksum += ret;
@@ -111,9 +132,10 @@ int main() {
 ////////////////////////////////////////////////////////////////////////////////
 
 /*
+#### benchmark
 rm -f main.o; gcc -o main.o main.c -march=native -O3 -lcpucycles -DBENCH=1
 taskset --cpu-list 0 ./main.o
-----
-rm -f main.o; gcc -o main.o main.c -march=native -O2 -lcpucycles -fsanitize=address -Wall -pedantic -Wuninitialized
+#### test
+rm -f main.o; gcc -o main.o main.c -march=native -O2 -lcpucycles -fsanitize=address -Wall -pedantic -Wuninitialized -DDEBUG=1
 taskset --cpu-list 0 ./main.o
 */

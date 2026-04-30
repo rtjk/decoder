@@ -40,8 +40,9 @@ void update_counters_after_flip(uint8_t *sigma, CONST POSITION_T HtrPosOnes[N0][
         __m256i htr = _mm256_loadu_si256((__m256i *)tmp);
         __m256i sum = _mm256_add_epi32(htr, vpos);
         __m256i sub = _mm256_sub_epi32(sum, vp);
-        __m256i msk = _mm256_cmpgt_epi32(vp, sum);
-        __m256i res = _mm256_blendv_epi8(sub, sum, msk);
+      //   __m256i msk = _mm256_cmpgt_epi32(vp, sum);
+      //   __m256i res = _mm256_blendv_epi8(sub, sum, msk);
+        __m256i res =  _mm256_min_epu32(sub, sum);
         _mm256_storeu_si256((__m256i *)tmp, res);
 
         for (int i = 0; i < 8 && r*8+i < V; i++) {
@@ -62,8 +63,9 @@ void update_counters_after_flip(uint8_t *sigma, CONST POSITION_T HtrPosOnes[N0][
                     // col = (HPosOnes[b2][j] + row_index) % P
                     __m256i col = _mm256_add_epi32(h2_regs[b2][r2], vrow);
                     __m256i s   = _mm256_sub_epi32(col, vp);
-                    __m256i m   = _mm256_cmpgt_epi32(vp, col);
-                    col = _mm256_blendv_epi8(s, col, m);
+                  //   __m256i m   = _mm256_cmpgt_epi32(vp, col);
+                  //   col = _mm256_blendv_epi8(s, col, m);
+                   col = _mm256_min_epu32(s, col);
 
                     uint32_t cols[8];
                     _mm256_storeu_si256((__m256i *)cols, col);
@@ -435,6 +437,9 @@ int bf_decoding_CT(
     // }
     int iter = 0;
     int hw = population_count(privateSyndrome);
+
+    DEBUG_PRINT(">>>> (start) hw=%d\n", hw);
+    
     //DIGIT update[NUM_DIGITS_GF2X_ELEMENT] = {0};
     bs_operand_t bs_unsatParityChecks[N0*NUM_SLICES_GF2X_ELEMENT];
     DIGIT update[NUM_DIGITS_GF2X_ELEMENT];
@@ -488,11 +493,14 @@ int bf_decoding_CT(
         hw = population_count(privateSyndrome);
 
         iter++;
+
+        DEBUG_PRINT(">>>> (%d) hw=%d\n", iter, hw);
+      
    } while( (iter < 1.5*NUM_ERRORS_T) && (hw != 0) );
-
-   printf(">>>> hw: %d, iter: %d\n", hw, iter);
-
-
+   // } while( hw != 0 );
+   
+   DEBUG_PRINT(">>>> (end) hw=%d\n", hw);
+   
    /* Check the solution of the decoder */
    int check = 0;
    while (check < NUM_DIGITS_GF2X_ELEMENT && privateSyndrome[check++] == 0);
@@ -589,58 +597,56 @@ void densify_error(DIGIT dense[N0*NUM_DIGITS_GF2X_ELEMENT], POSITION_T sparse[NU
    for (int j = 0; j < NUM_ERRORS_T; j++) {
       int polyIndex = (sparse[j] / P);
       int exponent = sparse[j] % P;
-      gf2x_set_coeff( dense + NUM_DIGITS_GF2X_ELEMENT*polyIndex, exponent,
-                      ( (DIGIT) 1));
+      gf2x_set_coeff( dense + NUM_DIGITS_GF2X_ELEMENT*polyIndex, exponent, ( (DIGIT) 1));
    }
 }
 ////////////////////////////////////////////////////////////////////////////////
-// void compute_syndrome(DIGIT s[NUM_DIGITS_GF2X_ELEMENT], DIGIT *H_dense, POSITION_T e_sparse[NUM_ERRORS_T], DIGIT e_dense[N0*NUM_DIGITS_GF2X_ELEMENT]) {
-//    // from encrypt_niederreiter()
-//    int i;
-//    DIGIT saux[NUM_DIGITS_GF2X_ELEMENT];
-//    unsigned int filled;
-//    memset(s, 0x00, NUM_DIGITS_GF2X_ELEMENT*DIGIT_SIZE_B);
-//    POSITION_T blkErrorPos[NUM_ERRORS_T];
-//    for (i = 0; i < N0-1; i++) {
-//       filled=0;
-//       for (int j = 0 ; j < NUM_ERRORS_T; j ++) {
-//          if(e_sparse[j] / P == i) {
-//             blkErrorPos[filled] =  e_sparse[j] % P;
-//             filled++;
-//          }
-//       }
-//       gf2x_mod_mul_dense_to_sparse(saux,
-//                                    H_dense + i*NUM_DIGITS_GF2X_ELEMENT,
-//                                    blkErrorPos,
-//                                    filled);
-//       gf2x_mod_add(s, s, saux);
-//    }   // end for
-//    gf2x_mod_add(s, s, e_dense+(N0-1)*NUM_DIGITS_GF2X_ELEMENT);
-// }
-// POSITION_T shift(POSITION_T h, POSITION_T i){
-//     POSITION_T pos  = h + i;
-//     POSITION_T mask = -(pos >= (POSITION_T)P);
-//     return pos - ((POSITION_T)P & mask);
-// }
-// #define FLIP_BIT(arr, i) do { (arr)[(i) >> 6] ^=  (1ULL << ((i) & 63)); } while(0)
-// #define S_WORDS ((P + 63) / 64) /* Number of words to represent the syndrome with an array of uint_64 */
-// void compute_syndrome(DIGIT syndrome[], POSITION_T H[2][V], POSITION_T* error){
-//     memset(syndrome,0, S_WORDS*DIGIT_SIZE_B);
-//     // for each index inside error support
-//     for (int i=0; i<NUM_ERRORS_T; i++) {
-//         // set position
-//         POSITION_T pos = error[i];
-//         // determinate in with circulant we are
-//         int b = (pos >= P);
-//         POSITION_T local_pos = pos - (b * P);
-
-//         for(int j = 0; j < V; j++){
-//             POSITION_T pos_to_flip = shift(H[b][j], local_pos);
-//             FLIP_BIT(syndrome, pos_to_flip);
-//         }
-//     }
-
-// }
+void compute_syndrome(DIGIT s[NUM_DIGITS_GF2X_ELEMENT], DIGIT *H_dense, POSITION_T e_sparse[NUM_ERRORS_T], DIGIT e_dense[N0*NUM_DIGITS_GF2X_ELEMENT]) {
+   // from encrypt_niederreiter()
+   int i;
+   DIGIT saux[NUM_DIGITS_GF2X_ELEMENT];
+   unsigned int filled;
+   memset(s, 0x00, NUM_DIGITS_GF2X_ELEMENT*DIGIT_SIZE_B);
+   POSITION_T blkErrorPos[NUM_ERRORS_T];
+   for (i = 0; i < N0-1; i++) {
+      filled=0;
+      for (int j = 0 ; j < NUM_ERRORS_T; j ++) {
+         if(e_sparse[j] / P == i) {
+            blkErrorPos[filled] =  e_sparse[j] % P;
+            filled++;
+         }
+      }
+      gf2x_mod_mul_dense_to_sparse(saux,
+                                   H_dense + i*NUM_DIGITS_GF2X_ELEMENT,
+                                   blkErrorPos,
+                                   filled);
+      gf2x_mod_add(s, s, saux);
+   }   // end for
+   gf2x_mod_add(s, s, e_dense+(N0-1)*NUM_DIGITS_GF2X_ELEMENT);
+}
+////////////////////////////////////////////////////////////////////////////////
+POSITION_T shift(POSITION_T h, POSITION_T i){
+    POSITION_T pos  = h + i;
+    POSITION_T mask = -(pos >= (POSITION_T)P);
+    return pos - ((POSITION_T)P & mask);
+}
+#define FLIP_BIT(arr, i) do { (arr)[(i) >> 6] ^=  (1ULL << ((i) & 63)); } while(0)
+#define S_WORDS ((P + 63) / 64) /* Number of words to represent the syndrome with an array of uint_64 */
+void compute_syndrome_2(DIGIT syndrome[], POSITION_T H[2][V], POSITION_T* error){
+    memset(syndrome,0, S_WORDS*DIGIT_SIZE_B);
+    // for each index inside error support
+    for (int i=0; i<NUM_ERRORS_T; i++) {
+        // set position
+        POSITION_T pos = error[i];
+        // determinate in with circulant we are
+        int b = (pos >= P);
+        POSITION_T local_pos = pos - (b * P);
+        for(int j = 0; j < V; j++){
+            POSITION_T pos_to_flip = shift(H[b][j], local_pos);
+            FLIP_BIT(syndrome, pos_to_flip);
+        }
+    }
+}
 ////////////////////////////////////////////////////////////////////////////////
 void transposeHPosOnes(POSITION_T HtrPosOnes[N0][V], /* output*/
                        POSITION_T CONST HPosOnes[N0][V]
