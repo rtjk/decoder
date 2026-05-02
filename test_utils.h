@@ -4,7 +4,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 void gf2x_toggle_coeff(DIGIT poly[], CONST unsigned int exponent)
 {
-
    int straightIdx = (NUM_DIGITS_GF2X_ELEMENT*DIGIT_SIZE_b -1) - exponent;
    int digitIdx = straightIdx / DIGIT_SIZE_b;
    unsigned int inDigitIdx = straightIdx % DIGIT_SIZE_b;
