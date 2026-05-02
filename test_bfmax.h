@@ -304,57 +304,64 @@ void sliced_to_uint8(CONST bs_operand_t* bs, uint8_t* ctrs, int total_elements, 
   }
 }
 ////////////////////////////////////////////////////////////////////////////////
-int bfmax_decoder(DIGIT out[], CONST POSITION_T HtrPosOnes[N0][V], CONST POSITION_T HPosOnes[N0][V], DIGIT privateSyndrome[]){
-    /* Densify HTr */
-    DIGIT HTr[N0][NUM_DIGITS_GF2X_ELEMENT] = {{0}};
-    for(int i=0; i<N0; i++) {
-        gf2x_mod_densify_VT(HTr[i],HtrPosOnes[i],V);
-    }
-    int iter = 0;
-    int hw = population_count(privateSyndrome);
-    DIGIT update[NUM_DIGITS_GF2X_ELEMENT];
-    bs_operand_t bs_unsatParityChecks[N0*NUM_SLICES_GF2X_ELEMENT];
-    memset(bs_unsatParityChecks, 0, sizeof(bs_unsatParityChecks));
-    for (int i = 0; i < N0; i++) {
-        lift_mul_dense_to_sparse_CT(
-            bs_unsatParityChecks+(i*NUM_SLICES_GF2X_ELEMENT),
-            privateSyndrome,
-            HPosOnes[i],
-            V
-        );
-    }
-    uint8_t sigma[N0*P] __attribute__((aligned(32)));
-    memset(sigma, 0, N0*P*sizeof(uint8_t));
-    /* CONVERSION OF THE COUNTERS */
-    sliced_to_uint8(bs_unsatParityChecks, sigma, N0*P, BITSLICED_OPERAND_WIDTH);
-    //compute_counters_uint8(sigma, HtrPosOnes, privateSyndrome);
-   do{
-        memset(update, 0, NUM_DIGITS_GF2X_ELEMENT*DIGIT_SIZE_B);
-        /* HYBRID APPROACH WITH COUNTER ARRAY FROM SLICED TO UINT8 */
-        POSITION_T flip = argmax_uint8(sigma, N0*P);
-        int block    = flip / P;  // quale blocco di HTr
-        int x        = flip % P;  // di quanto ruotare dentro quel blocco
-        gf2x_toggle_coeff(out + block * NUM_DIGITS_GF2X_ELEMENT, x);
-        gf2x_mod_mul_monom(update, x == 0 ? 0 :  x, HTr[block]);
-        gf2x_xor(privateSyndrome, update, privateSyndrome);
-        update_counters_uint8(sigma, HtrPosOnes, HPosOnes, flip, privateSyndrome);
-        /* APPROACH WITH COUNTER ARRAY BITSLICED */
-        //POSITION_T flip = argmax_bitsliced_impv(bs_unsatParityChecks, N0 * NUM_SLICES_GF2X_ELEMENT);
-        //int block    = flip / P;  // quale blocco di HTr
-        //int x        = flip % P;  // di quanto ruotare dentro quel blocco
-        //gf2x_toggle_coeff(out + block * NUM_DIGITS_GF2X_ELEMENT, x);
-        //update_counters_bitsliced(bs_unsatParityChecks, HtrPosOnes, HPosOnes, privateSyndrome, flip);
-        hw = population_count(privateSyndrome);
-        DEBUG_PRINT("i: %d \t hw(s): %d \n", iter, hw);
-        iter++;
-   } while( (iter < 1.5*NUM_ERRORS_T) && (hw != 0) );
+int bfmax_decoder(DIGIT out[], CONST POSITION_T HtrPosOnes[N0][V], CONST POSITION_T HPosOnes[N0][V], DIGIT privateSyndrome[]) {
+   /* densify H^T */
+   DIGIT HTr[N0][NUM_DIGITS_GF2X_ELEMENT] = {{0}};
+   for (int i = 0; i < N0; i++) {
+      gf2x_mod_densify_VT(HTr[i], HtrPosOnes[i], V);
+   }
+   /* compute bitsliced UPCs */
+   DIGIT update[NUM_DIGITS_GF2X_ELEMENT];
+   bs_operand_t bs_unsatParityChecks[N0 * NUM_SLICES_GF2X_ELEMENT];
+   memset(bs_unsatParityChecks, 0, sizeof(bs_unsatParityChecks));
+   for (int i = 0; i < N0; i++) {
+      lift_mul_dense_to_sparse_CT(
+          bs_unsatParityChecks + (i * NUM_SLICES_GF2X_ELEMENT),
+          privateSyndrome,
+          HPosOnes[i],
+          V);
+   }
+   /* convert UPCs to uint8_t */
+   uint8_t sigma[N0 * P] __attribute__((aligned(32)));
+   memset(sigma, 0, N0 * P * sizeof(uint8_t));
+   sliced_to_uint8(bs_unsatParityChecks, sigma, N0 * P, BITSLICED_OPERAND_WIDTH);
+   // compute_counters_uint8(sigma, HtrPosOnes, privateSyndrome);
+
+   /* decoding iterations */
+   int iter = 0;
+   int hw = population_count(privateSyndrome);
+   do {
+      memset(update, 0, NUM_DIGITS_GF2X_ELEMENT * DIGIT_SIZE_B);
+      /* HYBRID APPROACH WITH COUNTER ARRAY FROM SLICED TO UINT8 */
+      POSITION_T flip = argmax_uint8(sigma, N0 * P);
+      int block = flip / P; // quale blocco di HTr
+      int x = flip % P;     // di quanto ruotare dentro quel blocco
+      gf2x_toggle_coeff(out + block * NUM_DIGITS_GF2X_ELEMENT, x);
+      gf2x_mod_mul_monom(update, x == 0 ? 0 : x, HTr[block]);
+      gf2x_xor(privateSyndrome, update, privateSyndrome);
+      update_counters_uint8(sigma, HtrPosOnes, HPosOnes, flip, privateSyndrome);
+      /* APPROACH WITH COUNTER ARRAY BITSLICED */
+      // POSITION_T flip = argmax_bitsliced_impv(bs_unsatParityChecks, N0 * NUM_SLICES_GF2X_ELEMENT);
+      // int block    = flip / P;  // quale blocco di HTr
+      // int x        = flip % P;  // di quanto ruotare dentro quel blocco
+      // gf2x_toggle_coeff(out + block * NUM_DIGITS_GF2X_ELEMENT, x);
+      // update_counters_bitsliced(bs_unsatParityChecks, HtrPosOnes, HPosOnes, privateSyndrome, flip);
+      hw = population_count(privateSyndrome);
+      DEBUG_PRINT("i: %d \t hw(s): %d \n", iter, hw);
+      iter++;
+   } while ((iter < 1.5 * NUM_ERRORS_T) && (hw != 0));
+
    /* Check the solution of the decoder */
    int check = 0;
-   while (check < NUM_DIGITS_GF2X_ELEMENT && privateSyndrome[check++] == 0);
-   //return (check == NUM_DIGITS_GF2X_ELEMENT);
+   while (check < NUM_DIGITS_GF2X_ELEMENT && privateSyndrome[check++] == 0)
+      ;
+
    int hws = population_count(privateSyndrome);
    DEBUG_PRINT("i: L \t hw(s): %d \n", hws);
-   if(hws != 0) ERROR("hw(s)=%d decoding failure", hws);
-   return 1;     
+   if (hws != 0)
+      ERROR("hw(s)=%d decoding failure", hws);
+
+   // return (check == NUM_DIGITS_GF2X_ELEMENT);
+   return 1;
 }
 ////////////////////////////////////////////////////////////////////////////////

@@ -28,6 +28,8 @@
 #define DEBUG_PRINT(...) ((void)0)
 #endif
 
+#define ALIGN alignas(32)
+
 #define ERROR(...) do { printf("\n\033[0;31m [!] %s: ", __func__); printf(__VA_ARGS__); printf("\033[0m\n\n"); exit(1); } while(0)
 
 #define BE 0                // big endian
