@@ -2,6 +2,10 @@
 #include "helpers.h"
 #include "parameters.h"
 ////////////////////////////////////////////////////////////////////////////////
+// from test_utils:
+// - population_count
+// - gf2x_toggle_coeff
+////////////////////////////////////////////////////////////////////////////////
 void gf2x_copy(DIGIT dest[], CONST DIGIT in[])
 {
    for (int i = NUM_DIGITS_GF2X_ELEMENT-1; i >= 0; i--)
@@ -16,31 +20,10 @@ DIGIT gf2x_get_coeff(CONST DIGIT poly[], CONST unsigned int exponent)
    return (poly[digitIdx] >> (DIGIT_SIZE_b-1-inDigitIdx)) & ((DIGIT) 1) ;
 }
 ////////////////////////////////////////////////////////////////////////////////
-int population_count(DIGIT upc[])
-{
-   int ret = 0;
-   for(int i = NUM_DIGITS_GF2X_ELEMENT - 1; i >= 0; i--) {
-      ret += __builtin_popcountll((unsigned long long int) (upc[i]));
-   }
-   return ret;
-} // end population_count
-////////////////////////////////////////////////////////////////////////////////
-void gf2x_toggle_coeff(DIGIT poly[], CONST unsigned int exponent)
-{
-
-   int straightIdx = (NUM_DIGITS_GF2X_ELEMENT*DIGIT_SIZE_b -1) - exponent;
-   int digitIdx = straightIdx / DIGIT_SIZE_b;
-   unsigned int inDigitIdx = straightIdx % DIGIT_SIZE_b;
-
-   /* clear given coefficient */
-   DIGIT mask = ( ((DIGIT) 1) << (DIGIT_SIZE_b-1-inDigitIdx));
-   poly[digitIdx] = poly[digitIdx] ^ mask;
-}
-////////////////////////////////////////////////////////////////////////////////
-int bf_decoding(DIGIT out[], // N0 polynomials
-                CONST POSITION_T HtrPosOnes[N0][V],
-                DIGIT privateSyndrome[]  //  1 polynomial
-               )
+int bf_decoder(DIGIT out[], // N0 polynomials
+              CONST POSITION_T HtrPosOnes[N0][V],
+              DIGIT privateSyndrome[]  //  1 polynomial
+              )
 {
 #if P < 64
 #error The circulant block size should exceed 64

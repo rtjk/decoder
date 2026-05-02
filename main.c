@@ -11,6 +11,7 @@
 #include "parameters.h"     // scheme parameters
 #include "test_utils.h"     // functions to compute syndrome, transpose H, etc.
 #include "test_ref.h"       // reference decoding function
+#include "test_bfmax.h"     // optimized decoding function
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -59,7 +60,8 @@ int main() {
 
         /* decode */
         count_1 = CPUCYCLES();
-        uint8_t ret = bf_decoding(e_out_dense, Htr_sparse, s_dense);
+        // uint8_t ret = bf_decoder(e_out_dense, Htr_sparse, s_dense);
+        uint8_t ret = bfmax_decoder(e_out_dense, Htr_sparse, H_sparse, s_dense);
         count_2 = CPUCYCLES();
 
         /* compare error vectors */

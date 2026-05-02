@@ -2,6 +2,27 @@
 #include "helpers.h"
 #include "parameters.h"
 ////////////////////////////////////////////////////////////////////////////////
+void gf2x_toggle_coeff(DIGIT poly[], CONST unsigned int exponent)
+{
+
+   int straightIdx = (NUM_DIGITS_GF2X_ELEMENT*DIGIT_SIZE_b -1) - exponent;
+   int digitIdx = straightIdx / DIGIT_SIZE_b;
+   unsigned int inDigitIdx = straightIdx % DIGIT_SIZE_b;
+
+   /* clear given coefficient */
+   DIGIT mask = ( ((DIGIT) 1) << (DIGIT_SIZE_b-1-inDigitIdx));
+   poly[digitIdx] = poly[digitIdx] ^ mask;
+}
+////////////////////////////////////////////////////////////////////////////////
+int population_count(DIGIT upc[])
+{
+   int ret = 0;
+   for(int i = NUM_DIGITS_GF2X_ELEMENT - 1; i >= 0; i--) {
+      ret += __builtin_popcountll((unsigned long long int) (upc[i]));
+   }
+   return ret;
+} // end population_count
+////////////////////////////////////////////////////////////////////////////////
 void gf2x_set_coeff(DIGIT poly[], CONST unsigned int exponent, DIGIT value)
 {
    int straightIdx = (NUM_DIGITS_GF2X_ELEMENT*DIGIT_SIZE_b -1) - exponent;

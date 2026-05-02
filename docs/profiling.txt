@@ -1,0 +1,34 @@
+
+######## HOTSPOT
+
+#### install perf
+sudo apt install linux-perf
+
+#### install hotspot
+HOTSPOT_RELEASE=1.6.0
+mkdir -p ~/Documents/sw
+cd ~/Documents/sw
+rm -rf hotspot*
+wget "https://github.com/KDAB/hotspot/releases/download/v${HOTSPOT_RELEASE}/hotspot-v${HOTSPOT_RELEASE}-x86_64.AppImage"
+mv hotspot* hotspot
+chmod +x hotspot
+
+#### create aliases
+echo "alias hotspot='sudo ~/Documents/sw/hotspot'" >> ~/.bashrc
+echo "alias profile='sudo taskset -c 0 perf record -F max --call-graph dwarf,8192 --sample-cpu --mmap-pages 16M'" >> ~/.bashrc
+source ~/.bashrc
+
+#### enable performance monitoring until the next system reboot
+sudo sysctl -w kernel.perf_event_paranoid=0
+
+#### compile, run, analyze
+APP_NAME=main
+rm -f $APP_NAME.o; gcc -o $APP_NAME.o $APP_NAME.c -DSKIP_INLINE=1 -fno-omit-frame-pointer -fno-inline -fno-optimize-sibling-calls -g3 -O2 -march=native
+profile ./$APP_NAME.o
+hotspot
+
+######## KCACHEGRING
+
+sudo apt install valgrind kcachegrind
+valgrind --tool=callgrind --callgrind-out-file=callgrind.data --dump-instr=yes ####
+kcachegrind callgrind.data
