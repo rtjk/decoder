@@ -61,9 +61,8 @@ void util_densify_error(DIGIT dense[N0*NUM_DIGITS_GF2X_ELEMENT],
                         CONST POSITION_T positions[])
 {
    for(int j=0; j<NUM_ERRORS_T; j++) {
-      if(positions[j] >=P)
-        gf2x_set_coeff(dense + NUM_DIGITS_GF2X_ELEMENT, positions[j] % P, 1);
-      else gf2x_set_coeff(dense, positions[j], 1);
+      int block = positions[j] / P;
+      gf2x_set_coeff(dense + block * NUM_DIGITS_GF2X_ELEMENT, positions[j] % P, 1);
    }
 }
 ////////////////////////////////////////////////////////////////////////////////

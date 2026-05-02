@@ -170,6 +170,7 @@ void gf2x_mod_mul_monom(DIGIT shifted[],
    shifted[0] &= SLACK_CLEAR_MASK;
 }
 ////////////////////////////////////////////////////////////////////////////////
+// bs_unsatParityChecks + (block * NUM_SLICES_GF2X_ELEMENT), privateSyndrome, HPosOnes[block], V
 void lift_mul_dense_to_sparse_CT(bs_operand_t bs_res[], CONST DIGIT dense[], CONST POSITION_T sparse[], unsigned int nPos){
    SLICE_TYPE tmp[NUM_SLICES_GF2X_ELEMENT];
    for(int i =0; i< nPos; i++) {
