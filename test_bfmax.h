@@ -239,8 +239,7 @@ static INLINE void update_counters_uint8(uint8_t *sigma, CONST POSITION_T HtrPos
         __m256i htr = _mm256_loadu_si256((__m256i *)tmp);
         __m256i sum = _mm256_add_epi32(htr, vpos);
         __m256i sub = _mm256_sub_epi32(sum, vp);
-        __m256i msk = _mm256_cmpgt_epi32(vp, sum);
-        __m256i res = _mm256_blendv_epi8(sub, sum, msk);
+        __m256i res = _mm256_min_epu32(sum, sub);
         _mm256_storeu_si256((__m256i *)tmp, res);
         for (int i = 0; i < 8 && r*8+i < V; i++) {
             POSITION_T row_index = tmp[i];
@@ -256,8 +255,7 @@ static INLINE void update_counters_uint8(uint8_t *sigma, CONST POSITION_T HtrPos
                     // col = (HPosOnes[b2][j] + row_index) % P
                     __m256i col = _mm256_add_epi32(h2_regs[b2][r2], vrow);
                     __m256i s   = _mm256_sub_epi32(col, vp);
-                    __m256i m   = _mm256_cmpgt_epi32(vp, col);
-                    col = _mm256_blendv_epi8(s, col, m);
+                    col = _mm256_min_epu32(col, s);
                     uint32_t cols[8];
                     _mm256_storeu_si256((__m256i *)cols, col);
                     for (int j = 0; j < 8 && r2*8+j < V; j++)
