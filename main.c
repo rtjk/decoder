@@ -44,7 +44,7 @@ int main() {
 
         /* sample H */
         for(int block = 0; block < N0; block++) {
-            u32_arr_rand_unique(H_sparse[block], V, P);
+            u32_arr_rand_mod_unique(H_sparse[block], V, P);
             gf2x_mod_densify_VT(H_dense[block], H_sparse[block], V);
         }
         /* transpose H */
@@ -53,7 +53,7 @@ int main() {
             gf2x_mod_densify_VT(Htr_dense[block], Htr_sparse[block], V);
         }
         /* sample error vector */
-        u32_arr_rand_unique(e_in_sparse, NUM_ERRORS_T, N0*P);
+        u32_arr_rand_mod_unique(e_in_sparse, NUM_ERRORS_T, N0*P);
         util_densify_error(e_in_dense, e_in_sparse);
         /* compute syndrome */
         util_compute_syndrome(s_dense, Htr_dense, e_in_sparse, e_in_dense);
