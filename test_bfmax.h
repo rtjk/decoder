@@ -1,7 +1,7 @@
 #pragma once
 #include "helpers.h"
 #include "parameters.h"
-// #include "test_utils.h"
+#include "test_utils.h"
 ////////////////////////////////////////////////////////////////////////////////
 // from test_utils:
 // - gf2x_mod_densify_VT
@@ -18,6 +18,7 @@
 #define HI_SHIFT_AMT_BITS (BITS_TO_REPRESENT(P) - LO_SHIFT_AMT_BITS)
 ////////////////////////////////////////////////////////////////////////////////
 #define BITSLICED_OPERAND_WIDTH (BITS_TO_REPRESENT(V)+1)
+// #define BITSLICED_OPERAND_WIDTH (BITS_TO_REPRESENT(V))
 #define SLICE_TYPE __m256i
 #define NUM_BITS_IN_BITSLICED_OP (256)
 #define NUM_SLICES_GF2X_ELEMENT ( (NUM_DIGITS_GF2X_ELEMENT+3)/ \
@@ -129,7 +130,6 @@ void gf2x_mod_mul_monom(DIGIT shifted[],
     *                              | inter word shift amt | intra word shift amt |
     *                                  HI_SHIFT_AMT_BITS     LO_SHIFT_AMT_BITS
     */
-
    /* inter word shifting, done speculatively shifting the entire operand by a
     * power of two, and conditionally committing the result */
    POSITION_T high_shift_amt = shift_amt >> LO_SHIFT_AMT_BITS;
@@ -170,7 +170,10 @@ void gf2x_mod_mul_monom(DIGIT shifted[],
    shifted[0] &= SLACK_CLEAR_MASK;
 }
 ////////////////////////////////////////////////////////////////////////////////
-// bs_unsatParityChecks + (block * NUM_SLICES_GF2X_ELEMENT), privateSyndrome, HPosOnes[block], V
+// bs_res   bs_unsatParityChecks + (block * NUM_SLICES_GF2X_ELEMENT)
+// dense    privateSyndrome
+// sparse   HPosOnes[block]
+// nPos     V
 void lift_mul_dense_to_sparse_CT(bs_operand_t bs_res[], CONST DIGIT dense[], CONST POSITION_T sparse[], unsigned int nPos){
    SLICE_TYPE tmp[NUM_SLICES_GF2X_ELEMENT];
    for(int i =0; i< nPos; i++) {
@@ -317,10 +320,10 @@ int bfmax_decoder(DIGIT out[], CONST POSITION_T HtrPosOnes[N0][V], CONST POSITIO
    memset(bs_unsatParityChecks, 0, sizeof(bs_unsatParityChecks));
    for (int i = 0; i < N0; i++) {
       lift_mul_dense_to_sparse_CT(
-          bs_unsatParityChecks + (i * NUM_SLICES_GF2X_ELEMENT),
-          privateSyndrome,
-          HPosOnes[i],
-          V);
+         bs_unsatParityChecks + (i * NUM_SLICES_GF2X_ELEMENT),
+         privateSyndrome,
+         HPosOnes[i],
+         V);
    }
    /* convert UPCs to uint8_t */
    uint8_t sigma[N0 * P] __attribute__((aligned(32)));

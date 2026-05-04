@@ -1,6 +1,7 @@
 #pragma once
 #include "helpers.h"
 #include "parameters.h"
+#include "test_utils.h"
 ////////////////////////////////////////////////////////////////////////////////
 // from test_utils:
 // - population_count

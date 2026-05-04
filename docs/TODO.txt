@@ -1,12 +1,12 @@
 ////////////////////////////////////////////////////////////////////////////////
 - fix bfmax for N0>2
-- remove "+1" in "BITSLICED_OPERAND_WIDTH"
-- lift_mul_dense_to_sparse_CT ignores rows after the firsst?
 ////////////////////////////////////////////////////////////////////////////////
 - "inline" always capitalized
 - no AVX-512
 - check that all test_utils used in bfmax are optimal
 ////////////////////////////////////////////////////////////////////////////////
++ lift_mul_dense_to_sparse_CT ignores rows after the first? -> no, s is shifted
++ remove "+1" in "BITSLICED_OPERAND_WIDTH" -> -1%
 + modular reduction using "min" instead of "cmpgt" + "blendv" -> -4%
 + try "alignas(32)" on inputs -> no performance difference
 ////////////////////////////////////////////////////////////////////////////////
