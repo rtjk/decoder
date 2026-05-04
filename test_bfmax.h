@@ -322,7 +322,7 @@ static INLINE void compute_counters_uint8(
    IN  POSITION_T Htr_sparse[N0][V],
    IN  DIGIT syndrome[NUM_DIGITS_GF2X_ELEMENT])
 {
-   /* expand every syndome bit to u8 */
+   /* expand each syndome bit to u8 */
    uint8_t syndrome_bits[P];
    for (int i = 0; i < P; i++) {
       syndrome_bits[i] = get_coeff(syndrome, i);
@@ -330,17 +330,17 @@ static INLINE void compute_counters_uint8(
    /* for each block */
    for (int block = 0; block < N0; block++) {
       uint8_t *upc_block = &upc[block * P];
-      /* scan every idx in the first column */
+      /* scan each idx in the first column */
       for (int i = 0; i < V; i++) {
          int idx = Htr_sparse[block][i];
          int wrap = P - idx;
-         /* increment idx to shift the column (first half of upcs) */
-         for (int j = 0; j < wrap; j++) {
-            upc_block[j] += syndrome_bits[idx + j];
-         }
          /* increment idx to shift the column (second half of upcs) */
          for (int k = 0; k < idx; k++) {
             upc_block[wrap + k] += syndrome_bits[k];
+         }
+         /* increment idx to shift the column (first half of upcs) */
+         for (int j = 0; j < wrap; j++) {
+            upc_block[j] += syndrome_bits[idx + j];
          }
       }
    }
