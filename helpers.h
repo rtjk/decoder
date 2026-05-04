@@ -33,7 +33,7 @@
 #define DEBUG_PRINT(...) ((void)0)
 #endif
 
-#define ALIGN alignas(32)
+#define ALIGNED alignas(32)
 
 #define ERROR(...)                                  \
     do {                                            \
@@ -45,6 +45,9 @@
 
 #define BE 0                // big endian
 #define LE 1                // little endian
+
+#define IN                  // input parameter
+#define OUT                 // output parameter
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -83,6 +86,12 @@ void u32_arr_rand_mod_unique(uint32_t *arr, size_t n, size_t m) {
 
 /* print an array of n 32-bit words in decimal format */
 void u32_arr_print_dec(const uint32_t *arr, size_t n) {
+    for (size_t i = 0; i < n; i++) printf("%lu ", (uint64_t)arr[i]);
+    printf("\n");
+}
+
+/* print an array of n 8-bit words in decimal format */
+void u8_arr_print_dec(const uint8_t *arr, size_t n) {
     for (size_t i = 0; i < n; i++) printf("%lu ", (uint64_t)arr[i]);
     printf("\n");
 }
