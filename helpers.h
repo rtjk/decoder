@@ -53,7 +53,7 @@ void u32_arr_rand_mod(uint32_t *arr, size_t n, size_t m) {
     for (size_t i = 0; i < n; i++) arr[i] = rand() % m;
 }
 
-int cmp_uint32(const void *a, const void *b) {
+int u32_cmp(const void *a, const void *b) {
     uint32_t ua = *(const uint32_t *)a;
     uint32_t ub = *(const uint32_t *)b;
     if (ua < ub) return -1;
@@ -76,7 +76,7 @@ void u32_arr_rand_mod_unique(uint32_t *arr, size_t n, size_t m) {
             placed++;
         }
     }
-    // qsort(arr, n, sizeof(uint32_t), cmp_uint32);
+    // qsort(arr, n, sizeof(uint32_t), u32_cmp);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

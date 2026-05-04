@@ -31,7 +31,7 @@ int main() {
 
     uint8_t checksum = 0;
 
-    for (int run = 0; run < TESTS; run++) {
+    for (int test = 0; test < TESTS; test++) {
 
         uint64_t s_dense[NUM_DIGITS_GF2X_ELEMENT] = {0};        // syndrome (dense)
         uint64_t e_out_dense[N0*NUM_DIGITS_GF2X_ELEMENT] = {0}; // output error vector (dense)
