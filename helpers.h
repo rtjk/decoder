@@ -6,11 +6,11 @@
 #ifdef BENCH
 #include <cpucycles.h>
 #define CPUCYCLES() cpucycles()
-#define RUNS TESTS
+#define TESTS RUNS
 /* profiling and testing */
 #else
 #define CPUCYCLES() 0
-#define RUNS 1
+#define TESTS 1
 #endif
 
 #ifdef SKIP_INLINE
