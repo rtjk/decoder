@@ -317,6 +317,10 @@ static INLINE DIGIT get_coeff(
    return (poly[digitIdx] >> (DIGIT_SIZE_b-1-inDigitIdx)) & ((DIGIT) 1) ;
 }
 ////////////////////////////////////////////////////////////////////////////////
+/* for r in rows
+ *   for c in columns
+ *     upc[c] += s[c] & H[r][c]
+ */
 static INLINE void compute_counters_uint8(
    OUT uint8_t upc[N0 * P],
    IN  POSITION_T Htr_sparse[N0][V],
@@ -324,8 +328,8 @@ static INLINE void compute_counters_uint8(
 {
    /* expand each syndome bit to u8 */
    uint8_t syndrome_bits[P];
-   for (int i = 0; i < P; i++) {
-      syndrome_bits[i] = get_coeff(syndrome, i);
+   for (int b = 0; b < P; b++) {
+      syndrome_bits[b] = get_coeff(syndrome, b);
    }
    /* for each block */
    for (int block = 0; block < N0; block++) {
@@ -334,13 +338,13 @@ static INLINE void compute_counters_uint8(
       for (int i = 0; i < V; i++) {
          int idx = Htr_sparse[block][i];
          int wrap = P - idx;
-         /* increment idx to shift the column (second half of upcs) */
-         for (int k = 0; k < idx; k++) {
-            upc_block[wrap + k] += syndrome_bits[k];
-         }
          /* increment idx to shift the column (first half of upcs) */
          for (int j = 0; j < wrap; j++) {
             upc_block[j] += syndrome_bits[idx + j];
+         }
+         /* increment idx to shift the column (second half of upcs) */
+         for (int k = wrap; k < wrap + idx; k++) {
+            upc_block[k] += syndrome_bits[k - wrap];
          }
       }
    }

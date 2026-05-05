@@ -5,12 +5,14 @@
 /* benchmarking */
 #ifdef BENCH
 #include <cpucycles.h>
-#define CPUCYCLES() cpucycles()
 #define TESTS RUNS
+#define WARMUP 1000
+#define CPUCYCLES(test) ((test) >= WARMUP ? cpucycles() : 0)
 /* profiling and testing */
 #else
-#define CPUCYCLES() 0
 #define TESTS 1
+#define WARMUP 0
+#define CPUCYCLES(test) 0
 #endif
 
 #ifdef SKIP_INLINE

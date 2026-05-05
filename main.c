@@ -31,7 +31,7 @@ int main() {
 
     uint8_t checksum = 0;
 
-    for (int test = 0; test < TESTS; test++) {
+    for (int test = 0; test < TESTS + WARMUP; test++) {
 
         uint64_t s_dense[NUM_DIGITS_GF2X_ELEMENT] = {0};        // syndrome (dense)
         uint64_t e_out_dense[N0*NUM_DIGITS_GF2X_ELEMENT] = {0}; // output error vector (dense)
@@ -59,10 +59,10 @@ int main() {
         util_compute_syndrome(s_dense, Htr_dense, e_in_sparse, e_in_dense);
 
         /* decode */
-        count_1 = CPUCYCLES();
+        count_1 = CPUCYCLES(test);
         // uint8_t ret = bf_decoder(e_out_dense, Htr_sparse, s_dense);
         uint8_t ret = bfmax_decoder(e_out_dense, Htr_sparse, H_sparse, s_dense);
-        count_2 = CPUCYCLES();
+        count_2 = CPUCYCLES(test);
 
         /* compare error vectors */
         uint8_t cmp = memcmp(e_out_dense, e_in_dense, N0*NUM_DIGITS_GF2X_ELEMENT*sizeof(uint64_t));
