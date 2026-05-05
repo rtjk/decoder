@@ -2,7 +2,7 @@
 #include "helpers.h"
 #include "parameters.h"
 ////////////////////////////////////////////////////////////////////////////////
-void gf2x_toggle_coeff(DIGIT poly[], CONST unsigned int exponent)
+static INLINE void gf2x_toggle_coeff(DIGIT poly[], CONST unsigned int exponent)
 {
    int straightIdx = (NUM_DIGITS_GF2X_ELEMENT*DIGIT_SIZE_b -1) - exponent;
    int digitIdx = straightIdx / DIGIT_SIZE_b;
@@ -147,10 +147,11 @@ void gf2x_mod_mul_dense_to_sparse(DIGIT Res[],
 
 } // end gf2x_mod_mul
 ////////////////////////////////////////////////////////////////////////////////
-void util_compute_syndrome(DIGIT s_dense[NUM_DIGITS_GF2X_ELEMENT],
-                           DIGIT Htr_dense[N0][NUM_DIGITS_GF2X_ELEMENT],
-                           POSITION_T e_in_sparse[NUM_ERRORS_T],
-                           DIGIT e_in_dense[N0*NUM_DIGITS_GF2X_ELEMENT]) {
+void util_compute_syndrome(
+   OUT DIGIT s_dense[NUM_DIGITS_GF2X_ELEMENT],
+   IN  DIGIT Htr_dense[N0][NUM_DIGITS_GF2X_ELEMENT],
+   IN  POSITION_T e_sparse[NUM_ERRORS_T])
+{
    int i;
    DIGIT saux[NUM_DIGITS_GF2X_ELEMENT];
    unsigned int filled;
@@ -158,9 +159,9 @@ void util_compute_syndrome(DIGIT s_dense[NUM_DIGITS_GF2X_ELEMENT],
    POSITION_T blkErrorPos[NUM_ERRORS_T];
    for (i = 0; i < N0; i++) {
       filled=0;
-      for (int j = 0 ; j < NUM_ERRORS_T; j ++) {
-         if(e_in_sparse[j] / P == i) {
-            blkErrorPos[filled] =  e_in_sparse[j] % P;
+      for (int j = 0 ; j < NUM_ERRORS_T; j++) {
+         if(e_sparse[j] / P == i) {
+            blkErrorPos[filled] =  e_sparse[j] % P;
             filled++;
          }
       }

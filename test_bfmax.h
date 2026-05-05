@@ -220,7 +220,14 @@ POSITION_T argmax_uint8(CONST uint8_t* arr, size_t len) {
     return (POSITION_T)-1;
 }
 ////////////////////////////////////////////////////////////////////////////////
-static INLINE void update_counters_uint8(uint8_t *sigma, CONST POSITION_T HtrPosOnes[N0][V], CONST POSITION_T  HPosOnes[N0][V], POSITION_T pos_flip, DIGIT* syndrome){
+static INLINE int update_counters_uint8(
+   uint8_t *sigma, 
+   CONST POSITION_T HtrPosOnes[N0][V], 
+   CONST POSITION_T  HPosOnes[N0][V], 
+   POSITION_T pos_flip, 
+   uint8_t* syndrome_bits,
+   int hw)
+{
     int b = pos_flip >= P ? 1 : 0;
     POSITION_T local_pos = pos_flip - b * P;
     __m256i vp   = _mm256_set1_epi32((uint32_t)P);
@@ -228,12 +235,14 @@ static INLINE void update_counters_uint8(uint8_t *sigma, CONST POSITION_T HtrPos
     // pre-carica HPosOnes[b2] nei registri AVX2 una volta sola
     __m256i h2_regs[N0][N_REGS];
     for (int b2 = 0; b2 < N0; b2++) {
-        for (int r = 0; r < N_REGS; r++) {
-            uint32_t tmp[8] = {0};
-            for (int j = 0; j < 8 && r*8+j < V; j++)
-                tmp[j] = HPosOnes[b2][r*8+j];
-            h2_regs[b2][r] = _mm256_loadu_si256((__m256i *)tmp);
-        }
+       int r;
+       for (r = 0; r < N_REGS - 1; r++) {
+          h2_regs[b2][r] = _mm256_loadu_si256((__m256i *)&HPosOnes[b2][r * 8]);
+       }
+       uint32_t tmp[8] = {0};
+       for (int j = 0; j < 8 && r * 8 + j < V; j++)
+          tmp[j] = HPosOnes[b2][r * 8 + j];
+       h2_regs[b2][r] = _mm256_loadu_si256((__m256i *)tmp);
     }
     // calcola row_indices, ds e aggiorna counter in un unico loop
     for (int r = 0; r < N_REGS; r++) {
@@ -247,11 +256,11 @@ static INLINE void update_counters_uint8(uint8_t *sigma, CONST POSITION_T HtrPos
         _mm256_storeu_si256((__m256i *)tmp, res);
         for (int i = 0; i < 8 && r*8+i < V; i++) {
             POSITION_T row_index = tmp[i];
-            // ds branch-free
-            int straightIdx = (NUM_DIGITS_GF2X_ELEMENT * DIGIT_SIZE_b - 1) - row_index;
-            DIGIT bit       = (syndrome[straightIdx / DIGIT_SIZE_b] >>
-                              (DIGIT_SIZE_b - 1 - straightIdx % DIGIT_SIZE_b)) & 1;
-            int d           = (int)(2 * bit) - 1;
+            syndrome_bits[row_index] ^= 1;
+            int delta = (syndrome_bits[row_index] == 0) ? -1 : 1;
+            hw += delta;
+            uint8_t bit = syndrome_bits[row_index];
+            // int d           = (int)(2 * bit) - 1;
             __m256i vrow = _mm256_set1_epi32((uint32_t)row_index);
             for (int b2 = 0; b2 < N0; b2++) {
                 POSITION_T offset = b2 * P;
@@ -263,11 +272,12 @@ static INLINE void update_counters_uint8(uint8_t *sigma, CONST POSITION_T HtrPos
                     uint32_t cols[8];
                     _mm256_storeu_si256((__m256i *)cols, col);
                     for (int j = 0; j < 8 && r2*8+j < V; j++)
-                        sigma[offset + cols[j]] += d;
+                        sigma[offset + cols[j]] += delta;
                 }
             }
         }
     }
+    return hw;
 }
 ////////////////////////////////////////////////////////////////////////////////
 static INLINE void gf2x_xor(DIGIT Res[], CONST DIGIT A[], CONST DIGIT B[]){
@@ -317,20 +327,23 @@ static INLINE DIGIT get_coeff(
    return (poly[digitIdx] >> (DIGIT_SIZE_b-1-inDigitIdx)) & ((DIGIT) 1) ;
 }
 ////////////////////////////////////////////////////////////////////////////////
+static INLINE int hamming_weight(
+   IN uint8_t a[P])
+{
+   int hw = 0;
+   for (int i = 0; i < P; i++) hw += a[i];
+   return hw;
+}
+////////////////////////////////////////////////////////////////////////////////
 /* for r in rows
  *   for c in columns
- *     upc[c] += s[c] & H[r][c]
+ *     upc[c] += s[r] & H[r][c]
  */
-static INLINE void compute_counters_uint8(
+static INLINE void compute_upcs(
    OUT uint8_t upc[N0 * P],
    IN  POSITION_T Htr_sparse[N0][V],
-   IN  DIGIT syndrome[NUM_DIGITS_GF2X_ELEMENT])
+   IN  uint8_t syndrome_bits[P])
 {
-   /* expand each syndome bit to u8 */
-   uint8_t syndrome_bits[P];
-   for (int b = 0; b < P; b++) {
-      syndrome_bits[b] = get_coeff(syndrome, b);
-   }
    /* for each block */
    for (int block = 0; block < N0; block++) {
       uint8_t *upc_block = &upc[block * P];
@@ -350,70 +363,77 @@ static INLINE void compute_counters_uint8(
    }
 }
 ////////////////////////////////////////////////////////////////////////////////
-int bfmax_decoder(DIGIT out[], CONST POSITION_T HtrPosOnes[N0][V], CONST POSITION_T HPosOnes[N0][V], DIGIT privateSyndrome[]) {
-   /* densify H^T */
-   DIGIT HTr[N0][NUM_DIGITS_GF2X_ELEMENT] = {{0}};
-   for (int i = 0; i < N0; i++) {
-      gf2x_mod_densify_VT(HTr[i], HtrPosOnes[i], V);
+int bfmax_decoder_1(DIGIT out[], CONST POSITION_T HtrPosOnes[N0][V], CONST POSITION_T HPosOnes[N0][V], DIGIT privateSyndrome[]) {   
+   /* expand each syndome bit to u8 */
+   uint8_t syndrome_bits[P];
+   for (int b = 0; b < P; b++) {
+      syndrome_bits[b] = get_coeff(privateSyndrome, b);
    }
-
-   // /* compute bitsliced UPCs */
-   // DIGIT update[NUM_DIGITS_GF2X_ELEMENT];
-   // bs_operand_t bs_unsatParityChecks[N0 * NUM_SLICES_GF2X_ELEMENT];
-   // memset(bs_unsatParityChecks, 0, sizeof(bs_unsatParityChecks));
-   // for (int i = 0; i < N0; i++) {
-   //    lift_mul_dense_to_sparse_CT(
-   //       bs_unsatParityChecks + (i * NUM_SLICES_GF2X_ELEMENT),
-   //       privateSyndrome,
-   //       HPosOnes[i],
-   //       V);
-   // }
-   // /* convert UPCs to uint8_t */
-   // uint8_t sigma[N0 * P] __attribute__((aligned(32)));
-   // memset(sigma, 0, N0 * P * sizeof(uint8_t));
-   // sliced_to_uint8(bs_unsatParityChecks, sigma, N0 * P, BITSLICED_OPERAND_WIDTH);
-
-   /* compute UPCs as uint8_t */
-   DIGIT update[NUM_DIGITS_GF2X_ELEMENT];
-   ALIGNED uint8_t sigma[N0 * P];
-   memset(sigma, 0, N0 * P * sizeof(uint8_t));
-   compute_counters_uint8(sigma, HtrPosOnes, privateSyndrome);
-
+   /* compute unsatisfied parity checks */
+   ALIGNED uint8_t upc[N0 * P] = {0};
+   compute_upcs(upc, HtrPosOnes, syndrome_bits);
    /* decoding iterations */
    int iter = 0;
    int hw = population_count(privateSyndrome);
    do {
-      memset(update, 0, NUM_DIGITS_GF2X_ELEMENT * DIGIT_SIZE_B);
-      /* HYBRID APPROACH WITH COUNTER ARRAY FROM SLICED TO UINT8 */
-      POSITION_T flip = argmax_uint8(sigma, N0 * P);
+      POSITION_T flip = argmax_uint8(upc, N0 * P);
       int block = flip / P; // quale blocco di HTr
       int x = flip % P;     // di quanto ruotare dentro quel blocco
       gf2x_toggle_coeff(out + block * NUM_DIGITS_GF2X_ELEMENT, x);
-      gf2x_mod_mul_monom(update, x == 0 ? 0 : x, HTr[block]);
-      gf2x_xor(privateSyndrome, update, privateSyndrome);
-      update_counters_uint8(sigma, HtrPosOnes, HPosOnes, flip, privateSyndrome);
-      /* APPROACH WITH COUNTER ARRAY BITSLICED */
-      // POSITION_T flip = argmax_bitsliced_impv(bs_unsatParityChecks, N0 * NUM_SLICES_GF2X_ELEMENT);
-      // int block    = flip / P;  // quale blocco di HTr
-      // int x        = flip % P;  // di quanto ruotare dentro quel blocco
-      // gf2x_toggle_coeff(out + block * NUM_DIGITS_GF2X_ELEMENT, x);
-      // update_counters_bitsliced(bs_unsatParityChecks, HtrPosOnes, HPosOnes, privateSyndrome, flip);
-      hw = population_count(privateSyndrome);
+      hw = update_counters_uint8(upc, HtrPosOnes, HPosOnes, flip, syndrome_bits, hw);
       DEBUG_PRINT("i: %d \t hw(s): %d \n", iter, hw);
       iter++;
    } while ((iter < 1.5 * NUM_ERRORS_T) && (hw != 0));
-
-   /* Check the solution of the decoder */
-   int check = 0;
-   while (check < NUM_DIGITS_GF2X_ELEMENT && privateSyndrome[check++] == 0)
-      ;
-
-   int hws = population_count(privateSyndrome);
-   DEBUG_PRINT("i: L \t hw(s): %d \n", hws);
-   if (hws != 0)
-      ERROR("hw(s)=%d decoding failure", hws);
-
-   // return (check == NUM_DIGITS_GF2X_ELEMENT);
+   return 1;
+}
+////////////////////////////////////////////////////////////////////////////////
+int bfmax_decoder_2(
+   OUT DIGIT error[N0*NUM_DIGITS_GF2X_ELEMENT],
+   IN  POSITION_T Htr_sparse[N0][V], 
+   IN  POSITION_T H_sparse[N0][V], 
+   IN  DIGIT syndrome[NUM_DIGITS_GF2X_ELEMENT])
+{
+   /* expand each syndome bit to u8 */
+   uint8_t syndrome_bits[P];
+   for (int b = 0; b < P; b++) {
+      syndrome_bits[b] = get_coeff(syndrome, b);
+   }
+   /* compute unsatisfied parity checks */
+   ALIGNED uint8_t upc[N0 * P] = {0};
+   compute_upcs(upc, Htr_sparse, syndrome_bits);
+   /* decoding iterations */
+   int hw = hamming_weight(syndrome_bits);
+   for(int iter = 0; (iter < 200) && (hw > 0); iter++) {
+      /* flip the error bit corresponding to the maximum upc */
+      int flip = argmax_uint8(upc, N0 * P);
+      int flip_block = flip / P;
+      int flip_bit = flip % P;
+      gf2x_toggle_coeff(error + flip_block * NUM_DIGITS_GF2X_ELEMENT, flip_bit);
+      /* update the syndrome */
+      for (int i = 0; i < V; i++) {
+         int s = (Htr_sparse[flip_block][i] + flip_bit) % P;
+         uint8_t old = syndrome_bits[s];
+         syndrome_bits[s] ^= 1;
+         int delta = syndrome_bits[s] - old; // +1 or -1
+         hw += delta;
+         /* propagate the update to upcs */
+         for (int b = 0; b < N0; b++) {
+            for (int k = 0; k < V; k++) {
+               int shift = (H_sparse[b][k] + s) % P;
+               upc[b * P + shift] += delta;
+            }
+         }
+         // for (int b = 0; b < N0; b++) {
+         //    for (int k = 0; k < V; k++) {
+         //       int shift = Htr_sparse[b][k];
+         //       int pos = s - shift;
+         //       if (pos < 0) pos += P;
+         //       upc[b * P + pos] += delta;
+         //    }
+         // }
+      }
+      DEBUG_PRINT("i: %d \t hw(s): %d \n", iter, hw);
+   }
    return 1;
 }
 ////////////////////////////////////////////////////////////////////////////////

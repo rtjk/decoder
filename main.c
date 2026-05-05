@@ -56,12 +56,13 @@ int main() {
         u32_arr_rand_mod_unique(e_in_sparse, NUM_ERRORS_T, N0*P);
         util_densify_error(e_in_dense, e_in_sparse);
         /* compute syndrome */
-        util_compute_syndrome(s_dense, Htr_dense, e_in_sparse, e_in_dense);
+        util_compute_syndrome(s_dense, Htr_dense, e_in_sparse);
 
         /* decode */
         count_1 = CPUCYCLES(test);
         // uint8_t ret = bf_decoder(e_out_dense, Htr_sparse, s_dense);
-        uint8_t ret = bfmax_decoder(e_out_dense, Htr_sparse, H_sparse, s_dense);
+        // uint8_t ret = bfmax_decoder_1(e_out_dense, Htr_sparse, H_sparse, s_dense);
+        uint8_t ret = bfmax_decoder_2(e_out_dense, Htr_sparse, H_sparse, s_dense);
         count_2 = CPUCYCLES(test);
 
         /* compare error vectors */
