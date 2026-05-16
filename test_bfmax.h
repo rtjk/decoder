@@ -363,24 +363,29 @@ static INLINE void compute_upcs(
    }
 }
 ////////////////////////////////////////////////////////////////////////////////
-int bfmax_decoder_1(DIGIT out[], CONST POSITION_T HtrPosOnes[N0][V], CONST POSITION_T HPosOnes[N0][V], DIGIT privateSyndrome[]) {   
+int bfmax_decoder_1(
+   OUT DIGIT error[N0*NUM_DIGITS_GF2X_ELEMENT], 
+   IN  POSITION_T H_sparse[N0][V], 
+   IN  POSITION_T H_dense[N0][V], 
+   IN  DIGIT syndrome[NUM_DIGITS_GF2X_ELEMENT])
+{   
    /* expand each syndome bit to u8 */
    uint8_t syndrome_bits[P];
    for (int b = 0; b < P; b++) {
-      syndrome_bits[b] = get_coeff(privateSyndrome, b);
+      syndrome_bits[b] = get_coeff(syndrome, b);
    }
    /* compute unsatisfied parity checks */
    ALIGNED uint8_t upc[N0 * P] = {0};
-   compute_upcs(upc, HtrPosOnes, syndrome_bits);
+   compute_upcs(upc, H_sparse, syndrome_bits);
    /* decoding iterations */
    int iter = 0;
-   int hw = population_count(privateSyndrome);
+   int hw = population_count(syndrome);
    do {
       POSITION_T flip = argmax_uint8(upc, N0 * P);
       int block = flip / P; // quale blocco di HTr
       int x = flip % P;     // di quanto ruotare dentro quel blocco
-      gf2x_toggle_coeff(out + block * NUM_DIGITS_GF2X_ELEMENT, x);
-      hw = update_counters_uint8(upc, HtrPosOnes, HPosOnes, flip, syndrome_bits, hw);
+      gf2x_toggle_coeff(error + block * NUM_DIGITS_GF2X_ELEMENT, x);
+      hw = update_counters_uint8(upc, H_sparse, H_dense, flip, syndrome_bits, hw);
       DEBUG_PRINT("i: %d \t hw(s): %d \n", iter, hw);
       iter++;
    } while ((iter < 1.5 * NUM_ERRORS_T) && (hw != 0));
@@ -419,18 +424,12 @@ int bfmax_decoder_2(
          /* propagate the update to upcs */
          for (int b = 0; b < N0; b++) {
             for (int k = 0; k < V; k++) {
-               int shift = (H_sparse[b][k] + s) % P;
-               upc[b * P + shift] += delta;
+               int shift = Htr_sparse[b][k];
+               int pos = s - shift;
+               if (pos < 0) pos += P;
+               upc[b * P + pos] += delta;
             }
          }
-         // for (int b = 0; b < N0; b++) {
-         //    for (int k = 0; k < V; k++) {
-         //       int shift = Htr_sparse[b][k];
-         //       int pos = s - shift;
-         //       if (pos < 0) pos += P;
-         //       upc[b * P + pos] += delta;
-         //    }
-         // }
       }
       DEBUG_PRINT("i: %d \t hw(s): %d \n", iter, hw);
    }

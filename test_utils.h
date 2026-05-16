@@ -13,7 +13,7 @@ static INLINE void gf2x_toggle_coeff(DIGIT poly[], CONST unsigned int exponent)
    poly[digitIdx] = poly[digitIdx] ^ mask;
 }
 ////////////////////////////////////////////////////////////////////////////////
-int population_count(DIGIT upc[])
+static INLINE int population_count(DIGIT upc[])
 {
    int ret = 0;
    for(int i = NUM_DIGITS_GF2X_ELEMENT - 1; i >= 0; i--) {
@@ -36,7 +36,7 @@ void gf2x_set_coeff(DIGIT poly[], CONST unsigned int exponent, DIGIT value)
                                       (DIGIT_SIZE_b-1-inDigitIdx));
 }
 ////////////////////////////////////////////////////////////////////////////////
-void gf2x_mod_densify_VT(DIGIT dense[NUM_DIGITS_GF2X_ELEMENT],
+static INLINE void gf2x_mod_densify_VT(DIGIT dense[NUM_DIGITS_GF2X_ELEMENT],
                          CONST POSITION_T exponent[],
                          int num_exponents)
 {
@@ -147,6 +147,10 @@ void gf2x_mod_mul_dense_to_sparse(DIGIT Res[],
 
 } // end gf2x_mod_mul
 ////////////////////////////////////////////////////////////////////////////////
+/* for r in rows
+ *   for c in columns
+ *     s[c] = s[c] xor (e[r] & H[r][c])
+ */
 void util_compute_syndrome(
    OUT DIGIT s_dense[NUM_DIGITS_GF2X_ELEMENT],
    IN  DIGIT Htr_dense[N0][NUM_DIGITS_GF2X_ELEMENT],
