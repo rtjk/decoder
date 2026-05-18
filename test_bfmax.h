@@ -233,63 +233,57 @@ POSITION_T argmax_uint8(CONST uint8_t *arr, size_t len) {
 // }
 ////////////////////////////////////////////////////////////////////////////////
 static INLINE int update_counters_uint8(
-   uint8_t *sigma, 
-   CONST POSITION_T HtrPosOnes[N0][V], 
-   CONST POSITION_T  HPosOnes[N0][V], 
-   POSITION_T pos_flip, 
-   uint8_t* syndrome_bits,
-   int hw)
+   OUT uint8_t *upc, 
+   IN  CONST POSITION_T Htr_sparse[N0][PAD32+V], 
+   IN  CONST POSITION_T H_sparse[N0][PAD32+V], 
+   IN  POSITION_T flip, 
+   IN  uint8_t* syndrome_bits,
+   IN  int hw)
 {
-    int b = pos_flip >= P ? 1 : 0;
-    POSITION_T local_pos = pos_flip - b * P;
-    __m256i vp   = _mm256_set1_epi32((uint32_t)P);
-    __m256i vpos = _mm256_set1_epi32((uint32_t)local_pos);
-    // pre-carica HPosOnes[b2] nei registri AVX2 una volta sola
-    __m256i h2_regs[N0][N_REGS];
-    for (int b2 = 0; b2 < N0; b2++) {
-       int r;
-       for (r = 0; r < N_REGS - 1; r++) {
-          h2_regs[b2][r] = _mm256_loadu_si256((__m256i *)&HPosOnes[b2][r * 8]);
-       }
-       uint32_t tmp[8] = {0};
-       for (int j = 0; j < 8 && r * 8 + j < V; j++)
-          tmp[j] = HPosOnes[b2][r * 8 + j];
-       h2_regs[b2][r] = _mm256_loadu_si256((__m256i *)tmp);
-    }
-    // calcola row_indices, ds e aggiorna counter in un unico loop
-    for (int r = 0; r < N_REGS; r++) {
-        uint32_t tmp[8] = {0};
-        for (int i = 0; i < 8 && r*8+i < V; i++)
-            tmp[i] = HtrPosOnes[b][r*8+i];
-        __m256i htr = _mm256_loadu_si256((__m256i *)tmp);
-        __m256i sum = _mm256_add_epi32(htr, vpos);
-        __m256i sub = _mm256_sub_epi32(sum, vp);
-        __m256i res = _mm256_min_epu32(sum, sub);
-        _mm256_storeu_si256((__m256i *)tmp, res);
-        for (int i = 0; i < 8 && r*8+i < V; i++) {
-            POSITION_T row_index = tmp[i];
-            syndrome_bits[row_index] ^= 1;
-            int delta = (syndrome_bits[row_index] == 0) ? -1 : 1;
-            hw += delta;
-            uint8_t bit = syndrome_bits[row_index];
-            // int d           = (int)(2 * bit) - 1;
-            __m256i vrow = _mm256_set1_epi32((uint32_t)row_index);
-            for (int b2 = 0; b2 < N0; b2++) {
-                POSITION_T offset = b2 * P;
-                for (int r2 = 0; r2 < N_REGS; r2++) {
-                    // col = (HPosOnes[b2][j] + row_index) % P
-                    __m256i col = _mm256_add_epi32(h2_regs[b2][r2], vrow);
-                    __m256i s   = _mm256_sub_epi32(col, vp);
-                    col = _mm256_min_epu32(col, s);
-                    uint32_t cols[8];
-                    _mm256_storeu_si256((__m256i *)cols, col);
-                    for (int j = 0; j < 8 && r2*8+j < V; j++)
-                        sigma[offset + cols[j]] += delta;
-                }
+   int flip_block = flip / P;
+   int flip_bit = flip - flip_block * P;
+   __m256i vp = _mm256_set1_epi32((uint32_t)P);
+   __m256i vpos = _mm256_set1_epi32((uint32_t)flip_bit);
+   /* vectorize H_sparse */
+   __m256i v_H_row[N0][N_REGS];
+   for (int block = 0; block < N0; block++) {
+      int r;
+      for (r = 0; r < N_REGS; r++) {
+         v_H_row[block][r] = _mm256_loadu_si256((__m256i *)&H_sparse[block][r * 8]);
+      }
+   }
+   /* update syndrome and upcs */
+   for (int col_reg = 0; col_reg < N_REGS; col_reg++) {
+      /* get the column corresponding to the flipped bit */
+      uint32_t tmp[8] = {0};
+      __m256i htr = _mm256_loadu_si256((__m256i *)&Htr_sparse[flip_block][col_reg * 8]);
+      __m256i sum = _mm256_add_epi32(htr, vpos);
+      __m256i sub = _mm256_sub_epi32(sum, vp);
+      __m256i res = _mm256_min_epu32(sum, sub);
+      _mm256_storeu_si256((__m256i *)tmp, res);
+      /* scan each idx in the column */
+      for (int i = 0; (i < 8) && (col_reg * 8 + i < V); i++) {
+         /* update the syndrome */
+         POSITION_T row = tmp[i];
+         syndrome_bits[row] ^= 1;
+         int delta = (syndrome_bits[row] == 0) ? -1 : 1;
+         hw += delta;
+         /* propagate the update to upcs */
+         __m256i vrow = _mm256_set1_epi32((uint32_t)row);
+         for (int block = 0; block < N0; block++) {
+            for (int row_reg = 0; row_reg < N_REGS; row_reg++) {
+               uint32_t cols[8];
+               __m256i col = _mm256_add_epi32(v_H_row[block][row_reg], vrow);
+               __m256i sub = _mm256_sub_epi32(col, vp);
+               __m256i res = _mm256_min_epu32(col, sub);
+               _mm256_storeu_si256((__m256i *)cols, res);
+               for (int j = 0; (j < 8) && (row_reg * 8 + j < V); j++)
+                  upc[block * P + cols[j]] += delta;
             }
-        }
-    }
-    return hw;
+         }
+      }
+   }
+   return hw;
 }
 ////////////////////////////////////////////////////////////////////////////////
 static INLINE void gf2x_xor(DIGIT Res[], CONST DIGIT A[], CONST DIGIT B[]){
@@ -353,7 +347,7 @@ static INLINE int hamming_weight(
  */
 static INLINE void compute_upcs(
    OUT uint8_t upc[N0 * P],
-   IN  POSITION_T Htr_sparse[N0][V],
+   IN  POSITION_T Htr_sparse[N0][PAD32+V],
    IN  uint8_t syndrome_bits[P])
 {
    /* for each block */
@@ -387,8 +381,8 @@ static INLINE void dense_to_u8(
 ////////////////////////////////////////////////////////////////////////////////
 int bfmax_decoder_1(
    OUT DIGIT error[N0*NUM_DIGITS_GF2X_ELEMENT], 
-   IN  POSITION_T H_sparse[N0][V], 
-   IN  POSITION_T H_dense[N0][V], 
+   IN  POSITION_T H_sparse[N0][PAD32+V], 
+   IN  POSITION_T H_dense[N0][PAD32+V], 
    IN  DIGIT syndrome[NUM_DIGITS_GF2X_ELEMENT])
 {
    /* expand each syndome bit to u8 */
@@ -414,8 +408,8 @@ int bfmax_decoder_1(
 ////////////////////////////////////////////////////////////////////////////////
 int bfmax_decoder_2(
    OUT DIGIT error[N0*NUM_DIGITS_GF2X_ELEMENT],
-   IN  POSITION_T Htr_sparse[N0][V], 
-   IN  POSITION_T H_sparse[N0][V], 
+   IN  POSITION_T Htr_sparse[N0][PAD32+V], 
+   IN  POSITION_T H_sparse[N0][PAD32+V], 
    IN  DIGIT syndrome[NUM_DIGITS_GF2X_ELEMENT])
 {
    /* expand each syndome bit to u8 */

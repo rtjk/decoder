@@ -40,6 +40,11 @@ unsigned int synd_corrt_vec[][2]= {SYNDROME_TRESH_LOOKUP_TABLE};
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#define I32_IN_YMM            (256/32)
+#define PAD32                 (I32_IN_YMM - 1)
+
+////////////////////////////////////////////////////////////////////////////////
+
 #define                NUM_BITS_GF2X_ELEMENT (P)
 #define              NUM_DIGITS_GF2X_ELEMENT ((P+DIGIT_SIZE_b-1)/DIGIT_SIZE_b)
 #define MSb_POSITION_IN_MSB_DIGIT_OF_ELEMENT ( (P % DIGIT_SIZE_b) ? (P % DIGIT_SIZE_b)-1 : DIGIT_SIZE_b-1 )

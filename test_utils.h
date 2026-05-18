@@ -45,8 +45,8 @@ static INLINE void gf2x_mod_densify_VT(DIGIT dense[NUM_DIGITS_GF2X_ELEMENT],
    }
 }
 ////////////////////////////////////////////////////////////////////////////////
-void transposeHPosOnes(POSITION_T HtrPosOnes[N0][V], /* output*/
-                       POSITION_T CONST HPosOnes[N0][V]
+void transposeHPosOnes(POSITION_T HtrPosOnes[N0][PAD32+V], /* output*/
+                       POSITION_T CONST HPosOnes[N0][PAD32+V]
                       )
 {
    for (int i = 0; i < N0; i++) {

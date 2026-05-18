@@ -22,7 +22,7 @@ DIGIT gf2x_get_coeff(CONST DIGIT poly[], CONST unsigned int exponent)
 }
 ////////////////////////////////////////////////////////////////////////////////
 int bf_decoder(DIGIT out[], // N0 polynomials
-              CONST POSITION_T HtrPosOnes[N0][V],
+              CONST POSITION_T HtrPosOnes[N0][PAD32+V],
               DIGIT privateSyndrome[]  //  1 polynomial
               )
 {

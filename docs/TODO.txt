@@ -7,6 +7,7 @@
   operand bit width (7) <- preferred
   ...
 - in upc computation and update invert for loops to get single scan of col
+- pad in update_counters_uint8
 ////////////////////////////////////////////////////////////////////////////////
 - "inline" always capitalized
 - no AVX-512
