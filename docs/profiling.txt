@@ -23,7 +23,7 @@ sudo sysctl -w kernel.perf_event_paranoid=0
 
 #### compile, run, analyze
 APP_NAME=main
-rm -f $APP_NAME.o; gcc -o $APP_NAME.o $APP_NAME.c -DSKIP_INLINE=1 -fno-omit-frame-pointer -fno-inline -fno-optimize-sibling-calls -g3 -O2 -march=native
+rm -f $APP_NAME.o; gcc -o $APP_NAME.o $APP_NAME.c -DSKIP_INLINE=1 -fno-omit-frame-pointer -fno-inline -fno-optimize-sibling-calls -g3 -O3 -march=native
 profile ./$APP_NAME.o
 hotspot
 

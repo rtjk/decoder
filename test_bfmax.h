@@ -232,12 +232,12 @@ POSITION_T argmax_uint8(CONST uint8_t *arr, size_t len) {
 //    return max_idx;
 // }
 ////////////////////////////////////////////////////////////////////////////////
-static INLINE int update_counters_uint8(
+static INLINE int update_syndrome_and_upcs(
    OUT uint8_t *upc, 
    IN  CONST POSITION_T Htr_sparse[N0][PAD32+V], 
    IN  CONST POSITION_T H_sparse[N0][PAD32+V], 
    IN  POSITION_T flip, 
-   IN  uint8_t* syndrome_bits,
+   OUT uint8_t* syndrome_bits,
    IN  int hw)
 {
    int flip_block = flip / P;
@@ -254,7 +254,7 @@ static INLINE int update_counters_uint8(
    }
    /* update syndrome and upcs */
    for (int col_reg = 0; col_reg < N_REGS; col_reg++) {
-      /* get the column corresponding to the flipped bit */
+      /* get the column of H corresponding to the flipped bit */
       uint32_t tmp[8] = {0};
       __m256i htr = _mm256_loadu_si256((__m256i *)&Htr_sparse[flip_block][col_reg * 8]);
       __m256i sum = _mm256_add_epi32(htr, vpos);
@@ -399,7 +399,7 @@ int bfmax_decoder_1(
       int block = flip / P; // quale blocco di HTr
       int x = flip % P;     // di quanto ruotare dentro quel blocco
       gf2x_toggle_coeff(error + block * NUM_DIGITS_GF2X_ELEMENT, x);
-      hw = update_counters_uint8(upc, H_sparse, H_dense, flip, syndrome_bits, hw);
+      hw = update_syndrome_and_upcs(upc, H_sparse, H_dense, flip, syndrome_bits, hw);
       DEBUG_PRINT("i: %d \t hw(s): %d \n", iter, hw);
       iter++;
    } while ((iter < 1.5 * NUM_ERRORS_T) && (hw != 0));
