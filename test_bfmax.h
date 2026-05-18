@@ -21,8 +21,8 @@
 #define BITSLICED_OPERAND_WIDTH (BITS_TO_REPRESENT(V))
 #define SLICE_TYPE __m256i
 #define NUM_BITS_IN_BITSLICED_OP (256)
-#define NUM_SLICES_GF2X_ELEMENT ( (NUM_DIGITS_GF2X_ELEMENT+3)/ \
-                                  (NUM_BITS_IN_BITSLICED_OP/DIGIT_SIZE_b) )
+// TODO: reduce
+#define NUM_SLICES_GF2X_ELEMENT ( (NUM_DIGITS_GF2X_ELEMENT+3)/ (NUM_BITS_IN_BITSLICED_OP/DIGIT_SIZE_b) )
 ////////////////////////////////////////////////////////////////////////////////
 typedef struct {
    SLICE_TYPE slice[BITSLICED_OPERAND_WIDTH];
@@ -184,41 +184,53 @@ void lift_mul_dense_to_sparse_CT(bs_operand_t bs_res[], CONST DIGIT dense[], CON
    }
 }
 ////////////////////////////////////////////////////////////////////////////////
-POSITION_T argmax_uint8(CONST uint8_t* arr, size_t len) {
-    size_t i = 0;
-    __m256i max_vec = _mm256_setzero_si256();
-    for (; i <= len - 32; i += 32) {
-        __m256i v = _mm256_loadu_si256((__m256i*)&arr[i]);
-        max_vec = _mm256_max_epu8(max_vec, v);
-    }
-    // horizontal reduction (256 → scalar)
-    __m128i lo = _mm256_castsi256_si128(max_vec);
-    __m128i hi = _mm256_extracti128_si256(max_vec, 1);
-    __m128i m  = _mm_max_epu8(lo, hi);
-    m = _mm_max_epu8(m, _mm_srli_si128(m, 8));
-    m = _mm_max_epu8(m, _mm_srli_si128(m, 4));
-    m = _mm_max_epu8(m, _mm_srli_si128(m, 2));
-    m = _mm_max_epu8(m, _mm_srli_si128(m, 1));
-    uint8_t max_val = (uint8_t)_mm_extract_epi8(m, 0);
-    // scalar մն remainder
-    for (; i < len; i++)
-        if (arr[i] > max_val) max_val = arr[i];
-    __m256i vmax = _mm256_set1_epi8((char)max_val);
-    i = 0;
-    for (; i <= len - 32; i += 32) {
-        __m256i v   = _mm256_loadu_si256((__m256i*)&arr[i]);
-        __m256i cmp = _mm256_cmpeq_epi8(v, vmax);
-
-        int mask = _mm256_movemask_epi8(cmp);
-        if (mask) {
-            return (POSITION_T)(i + __builtin_ctz(mask));
-        }
-    }
-    for (; i < len; i++)
-        if (arr[i] == max_val) return (POSITION_T)i;
-
-    return (POSITION_T)-1;
+POSITION_T argmax_uint8(CONST uint8_t *arr, size_t len) {
+   size_t i = 0;
+   __m256i max_vec = _mm256_setzero_si256();
+   for (; i <= len - 32; i += 32) {
+      __m256i v = _mm256_loadu_si256((__m256i *)&arr[i]);
+      max_vec = _mm256_max_epu8(max_vec, v);
+   }
+   // horizontal reduction (256 → scalar)
+   __m128i lo = _mm256_castsi256_si128(max_vec);
+   __m128i hi = _mm256_extracti128_si256(max_vec, 1);
+   __m128i m = _mm_max_epu8(lo, hi);
+   m = _mm_max_epu8(m, _mm_srli_si128(m, 8));
+   m = _mm_max_epu8(m, _mm_srli_si128(m, 4));
+   m = _mm_max_epu8(m, _mm_srli_si128(m, 2));
+   m = _mm_max_epu8(m, _mm_srli_si128(m, 1));
+   uint8_t max_val = (uint8_t)_mm_extract_epi8(m, 0);
+   // scalar մն remainder
+   for (; i < len; i++)
+      if (arr[i] > max_val)
+         max_val = arr[i];
+   __m256i vmax = _mm256_set1_epi8((char)max_val);
+   i = 0;
+   for (; i <= len - 32; i += 32) {
+      __m256i v = _mm256_loadu_si256((__m256i *)&arr[i]);
+      __m256i cmp = _mm256_cmpeq_epi8(v, vmax);
+      int mask = _mm256_movemask_epi8(cmp);
+      if (mask) {
+         return (POSITION_T)(i + __builtin_ctz(mask));
+      }
+   }
+   for (; i < len; i++)
+      if (arr[i] == max_val)
+         return (POSITION_T)i;
+   return (POSITION_T)-1;
 }
+////////////////////////////////////////////////////////////////////////////////
+// uint32_t argmax_uint8(uint8_t *arr, size_t len) {
+//    uint32_t max_idx = 0;
+//    uint8_t max_val = 0;
+//    for (uint32_t i = 1; i < len; i++) {
+//       if (arr[i] > max_val) {
+//          max_val = arr[i];
+//          max_idx = i;
+//       }
+//    }
+//    return max_idx;
+// }
 ////////////////////////////////////////////////////////////////////////////////
 static INLINE int update_counters_uint8(
    uint8_t *sigma, 
