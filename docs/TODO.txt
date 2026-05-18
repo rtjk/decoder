@@ -5,7 +5,8 @@
 - try "uint" instead of "int"
 - bitslicing notation is ambiguous, # slices means:
   operand bit width (7) <- preferred
-  
+  ...
+- in upc computation and update invert for loops to get single scan of col
 ////////////////////////////////////////////////////////////////////////////////
 - "inline" always capitalized
 - no AVX-512

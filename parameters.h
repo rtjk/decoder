@@ -36,6 +36,8 @@ unsigned int synd_corrt_vec[][2]= {SYNDROME_TRESH_LOOKUP_TABLE};
 #define POSITION_T            uint32_t
 #define SIGNED_POSITION_T     int32_t
 
+#define POS                   POSITION_T
+
 ////////////////////////////////////////////////////////////////////////////////
 
 #define                NUM_BITS_GF2X_ELEMENT (P)

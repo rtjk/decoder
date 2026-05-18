@@ -375,17 +375,25 @@ static INLINE void compute_upcs(
    }
 }
 ////////////////////////////////////////////////////////////////////////////////
+static INLINE void dense_to_u8(
+   OUT uint8_t u8[],
+   IN  DIGIT dense[],
+   IN  int len)
+{
+   for (int i = 0; i < len; i++) {
+      u8[i] = get_coeff(dense, i);
+   }
+}
+////////////////////////////////////////////////////////////////////////////////
 int bfmax_decoder_1(
    OUT DIGIT error[N0*NUM_DIGITS_GF2X_ELEMENT], 
    IN  POSITION_T H_sparse[N0][V], 
    IN  POSITION_T H_dense[N0][V], 
    IN  DIGIT syndrome[NUM_DIGITS_GF2X_ELEMENT])
-{   
+{
    /* expand each syndome bit to u8 */
    uint8_t syndrome_bits[P];
-   for (int b = 0; b < P; b++) {
-      syndrome_bits[b] = get_coeff(syndrome, b);
-   }
+   dense_to_u8(syndrome_bits, syndrome, P);
    /* compute unsatisfied parity checks */
    ALIGNED uint8_t upc[N0 * P] = {0};
    compute_upcs(upc, H_sparse, syndrome_bits);
@@ -412,9 +420,7 @@ int bfmax_decoder_2(
 {
    /* expand each syndome bit to u8 */
    uint8_t syndrome_bits[P];
-   for (int b = 0; b < P; b++) {
-      syndrome_bits[b] = get_coeff(syndrome, b);
-   }
+   dense_to_u8(syndrome_bits, syndrome, P);
    /* compute unsatisfied parity checks */
    ALIGNED uint8_t upc[N0 * P] = {0};
    compute_upcs(upc, Htr_sparse, syndrome_bits);
@@ -422,23 +428,21 @@ int bfmax_decoder_2(
    int hw = hamming_weight(syndrome_bits);
    for(int iter = 0; (iter < 200) && (hw > 0); iter++) {
       /* flip the error bit corresponding to the maximum upc */
-      int flip = argmax_uint8(upc, N0 * P);
-      int flip_block = flip / P;
-      int flip_bit = flip % P;
-      gf2x_toggle_coeff(error + flip_block * NUM_DIGITS_GF2X_ELEMENT, flip_bit);
+      int col = argmax_uint8(upc, N0 * P);
+      int col_block = col / P;
+      int col_bit = col % P;
+      gf2x_toggle_coeff(error + col_block * NUM_DIGITS_GF2X_ELEMENT, col_bit); // TODO: save positions and toggle later
       /* update the syndrome */
       for (int i = 0; i < V; i++) {
-         int s = (Htr_sparse[flip_block][i] + flip_bit) % P;
-         uint8_t old = syndrome_bits[s];
-         syndrome_bits[s] ^= 1;
-         int delta = syndrome_bits[s] - old; // +1 or -1
+         int row = (Htr_sparse[col_block][i] + col_bit) % P;
+         uint8_t old = syndrome_bits[row];
+         syndrome_bits[row] ^= 1;
+         int delta = syndrome_bits[row] - old; // +1 or -1
          hw += delta;
          /* propagate the update to upcs */
          for (int b = 0; b < N0; b++) {
             for (int k = 0; k < V; k++) {
-               int shift = Htr_sparse[b][k];
-               int pos = s - shift;
-               if (pos < 0) pos += P;
+               int pos = (H_sparse[b][k] + row) % P;
                upc[b * P + pos] += delta;
             }
          }
