@@ -253,6 +253,8 @@ static INLINE int update_syndrome_and_upcs(
       }
    }
    /* update syndrome and upcs */
+   __m256i up_pos[V][N0][N_REGS];
+   int up_sign[V];
    for (int col_reg = 0; col_reg < N_REGS; col_reg++) {
       /* get the column of H corresponding to the flipped bit */
       uint32_t tmp[8] = {0};
@@ -268,17 +270,34 @@ static INLINE int update_syndrome_and_upcs(
          syndrome_bits[row] ^= 1;
          int delta = (syndrome_bits[row] == 0) ? -1 : 1;
          hw += delta;
-         /* propagate the update to upcs */
+         up_sign[col_reg * 8 + i] = delta;
+         /* save upc positions to update */
          __m256i vrow = _mm256_set1_epi32((uint32_t)row);
          for (int block = 0; block < N0; block++) {
             for (int row_reg = 0; row_reg < N_REGS; row_reg++) {
-               uint32_t cols[8];
                __m256i col = _mm256_add_epi32(v_H_row[block][row_reg], vrow);
                __m256i sub = _mm256_sub_epi32(col, vp);
                __m256i res = _mm256_min_epu32(col, sub);
-               _mm256_storeu_si256((__m256i *)cols, res);
-               for (int j = 0; (j < 8) && (row_reg * 8 + j < V); j++)
-                  upc[block * P + cols[j]] += delta;
+               up_pos[col_reg * 8 + i][block][row_reg] = res;
+               // uint32_t cols[8];
+               // _mm256_storeu_si256((__m256i *)cols, res);
+               // for (int j = 0; (j < 8) && (row_reg * 8 + j < V); j++) {
+               //    upc[block * P + cols[j]] += delta;
+               // }
+            }
+         }
+      }
+   }
+   /* update upcs */
+   uint32_t *up_pos_u32 = (uint32_t *)up_pos;
+   for (int i = 0; i < V; i++) {
+      int delta = up_sign[i];
+      for (int block = 0; block < N0; block++) {
+         for (int row_reg = 0; row_reg < N_REGS; row_reg++) {
+            for (int lane = 0; (lane < 8) && (row_reg * 8 + lane < V); lane++) {
+               int idx = (((i * N0 + block) * N_REGS + row_reg) * 8) + lane;
+               uint32_t x = up_pos_u32[idx];
+               upc[block * P + x] += delta;
             }
          }
       }
