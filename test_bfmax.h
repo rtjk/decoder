@@ -271,7 +271,7 @@ static INLINE int update_syndrome_and_upcs(
          int delta = (syndrome_bits[row] == 0) ? -1 : 1;
          hw += delta;
          up_sign[col_reg * 8 + i] = delta;
-         /* save upc positions to update */
+         /* save upc positions to update (faster than updating upcs directly) */
          __m256i vrow = _mm256_set1_epi32((uint32_t)row);
          for (int block = 0; block < N0; block++) {
             for (int row_reg = 0; row_reg < N_REGS; row_reg++) {
