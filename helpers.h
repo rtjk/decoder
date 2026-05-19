@@ -66,6 +66,14 @@ int u32_cmp(const void *a, const void *b) {
     return 0;
 }
 
+int u16_cmp(const void *a, const void *b) {
+    uint16_t ua = *(const uint16_t *)a;
+    uint16_t ub = *(const uint16_t *)b;
+    if (ua < ub) return -1;
+    if (ua > ub) return 1;
+    return 0;
+}
+
 /* fill an array of n 32-bit words with unique random values modulo m */
 void u32_arr_rand_mod_unique(uint32_t *arr, size_t n, size_t m) {
     if (n > m) ERROR("n > m");
@@ -82,6 +90,24 @@ void u32_arr_rand_mod_unique(uint32_t *arr, size_t n, size_t m) {
         }
     }
     // qsort(arr, n, sizeof(uint32_t), u32_cmp);
+}
+
+/* fill an array of n 16-bit words with unique random values modulo m */
+void u16_arr_rand_mod_unique(uint16_t *arr, size_t n, size_t m) {
+    if (n > m) ERROR("n > m");
+    size_t placed = 0;
+    while (placed < n) {
+        uint16_t r = rand() % m;
+        uint8_t unique = 1;
+        for (size_t i = 0; i < placed && unique; i++) {
+            if (arr[i] == r) unique = 0;
+        }
+        if (unique) {
+            arr[placed] = r;
+            placed++;
+        }
+    }
+    // qsort(arr, n, sizeof(uint16_t), u16_cmp);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

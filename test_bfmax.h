@@ -8,7 +8,7 @@
 // - population_count
 // - gf2x_toggle_coeff
 ////////////////////////////////////////////////////////////////////////////////
-#define N_REGS ((V + 7) / 8)
+#define N_REGS ((V*16+(I16_IN_YMM-1)*16)/256)
 ////////////////////////////////////////////////////////////////////////////////
 #define WORD_LEVEL_SHIFT word_level_shift_VT
 #define SLACK_SIZE (DIGIT_SIZE_b-(P%DIGIT_SIZE_b))
@@ -184,7 +184,7 @@ void lift_mul_dense_to_sparse_CT(bs_operand_t bs_res[], CONST DIGIT dense[], CON
    }
 }
 ////////////////////////////////////////////////////////////////////////////////
-POSITION_T argmax_uint8(CONST uint8_t *arr, size_t len) {
+POS argmax_uint8(CONST uint8_t *arr, size_t len) {
    size_t i = 0;
    __m256i max_vec = _mm256_setzero_si256();
    for (; i <= len - 32; i += 32) {
@@ -211,13 +211,13 @@ POSITION_T argmax_uint8(CONST uint8_t *arr, size_t len) {
       __m256i cmp = _mm256_cmpeq_epi8(v, vmax);
       int mask = _mm256_movemask_epi8(cmp);
       if (mask) {
-         return (POSITION_T)(i + __builtin_ctz(mask));
+         return (POS)(i + __builtin_ctz(mask));
       }
    }
    for (; i < len; i++)
       if (arr[i] == max_val)
-         return (POSITION_T)i;
-   return (POSITION_T)-1;
+         return (POS)i;
+   return (POS)-1;
 }
 ////////////////////////////////////////////////////////////////////////////////
 // uint32_t argmax_uint8(uint8_t *arr, size_t len) {
@@ -234,22 +234,22 @@ POSITION_T argmax_uint8(CONST uint8_t *arr, size_t len) {
 ////////////////////////////////////////////////////////////////////////////////
 static INLINE int update_syndrome_and_upcs(
    OUT uint8_t *upc, 
-   IN  CONST POSITION_T Htr_sparse[N0][PAD32+V], 
-   IN  CONST POSITION_T H_sparse[N0][PAD32+V], 
-   IN  POSITION_T flip, 
+   IN  CONST POS Htr_sparse[N0][PAD16+V], 
+   IN  CONST POS H_sparse[N0][PAD16+V], 
+   IN  POS flip, 
    OUT uint8_t* syndrome_bits,
    IN  int hw)
 {
    int flip_block = flip / P;
    int flip_bit = flip - flip_block * P;
-   __m256i vp = _mm256_set1_epi32((uint32_t)P);
-   __m256i vpos = _mm256_set1_epi32((uint32_t)flip_bit);
+   __m256i vp = _mm256_set1_epi16((POS)P);
+   __m256i vpos = _mm256_set1_epi16((POS)flip_bit);
    /* vectorize H_sparse */
    __m256i v_H_row[N0][N_REGS];
    for (int block = 0; block < N0; block++) {
       int r;
       for (r = 0; r < N_REGS; r++) {
-         v_H_row[block][r] = _mm256_loadu_si256((__m256i *)&H_sparse[block][r * 8]);
+         v_H_row[block][r] = _mm256_loadu_si256((__m256i *)&H_sparse[block][r * I16_IN_YMM]);
       }
    }
    /* update syndrome and save upc positions to update */
@@ -257,41 +257,41 @@ static INLINE int update_syndrome_and_upcs(
    int up_sign[V];
    for (int col_reg = 0; col_reg < N_REGS; col_reg++) {
       /* get the column of H corresponding to the flipped bit */
-      uint32_t tmp[8] = {0};
-      __m256i htr = _mm256_loadu_si256((__m256i *)&Htr_sparse[flip_block][col_reg * 8]);
-      __m256i sum = _mm256_add_epi32(htr, vpos);
-      __m256i sub = _mm256_sub_epi32(sum, vp);
-      __m256i res = _mm256_min_epu32(sum, sub);
+      POS tmp[I16_IN_YMM] = {0};
+      __m256i htr = _mm256_loadu_si256((__m256i *)&Htr_sparse[flip_block][col_reg * I16_IN_YMM]);
+      __m256i sum = _mm256_add_epi16(htr, vpos);
+      __m256i sub = _mm256_sub_epi16(sum, vp);
+      __m256i res = _mm256_min_epu16(sum, sub);
       _mm256_storeu_si256((__m256i *)tmp, res);
       /* scan each idx in the column */
-      for (int i = 0; (i < 8) && (col_reg * 8 + i < V); i++) {
+      for (int i = 0; (i < I16_IN_YMM) && (col_reg * I16_IN_YMM + i < V); i++) {
          /* update the syndrome */
-         POSITION_T row = tmp[i];
+         POS row = tmp[i];
          syndrome_bits[row] ^= 1;
          int delta = (syndrome_bits[row] == 0) ? -1 : 1;
          hw += delta;
-         up_sign[col_reg * 8 + i] = delta;
+         up_sign[col_reg * I16_IN_YMM + i] = delta;
          /* save upc positions to update (faster than updating upcs directly) */
-         __m256i vrow = _mm256_set1_epi32((uint32_t)row);
+         __m256i vrow = _mm256_set1_epi16((POS)row);
          for (int block = 0; block < N0; block++) {
             for (int row_reg = 0; row_reg < N_REGS; row_reg++) {
-               __m256i col = _mm256_add_epi32(v_H_row[block][row_reg], vrow);
-               __m256i sub = _mm256_sub_epi32(col, vp);
-               __m256i res = _mm256_min_epu32(col, sub);
-               up_pos[col_reg * 8 + i][block][row_reg] = res;
+               __m256i col = _mm256_add_epi16(v_H_row[block][row_reg], vrow);
+               __m256i sub = _mm256_sub_epi16(col, vp);
+               __m256i res = _mm256_min_epu16(col, sub);
+               up_pos[col_reg * I16_IN_YMM + i][block][row_reg] = res;
             }
          }
       }
    }
    /* update upcs */
-   uint32_t *up_pos_u32 = (uint32_t *)up_pos;
+   POS *up_pos_u16 = (POS *)up_pos;
    for (int i = 0; i < V; i++) {
       int delta = up_sign[i];
       for (int block = 0; block < N0; block++) {
          for (int row_reg = 0; row_reg < N_REGS; row_reg++) {
-            for (int lane = 0; (lane < 8) && (row_reg * 8 + lane < V); lane++) {
-               int up_idx = (((i * N0 + block) * N_REGS + row_reg) * 8) + lane;
-               uint32_t col = up_pos_u32[up_idx];
+            for (int lane = 0; (lane < I16_IN_YMM) && (row_reg * I16_IN_YMM + lane < V); lane++) {
+               int up_idx = (((i * N0 + block) * N_REGS + row_reg) * I16_IN_YMM) + lane;
+               POS col = up_pos_u16[up_idx];
                upc[block * P + col] += delta;
             }
          }
@@ -361,7 +361,7 @@ static INLINE int hamming_weight(
  */
 static INLINE void compute_upcs(
    OUT uint8_t upc[N0 * P],
-   IN  POSITION_T Htr_sparse[N0][PAD32+V],
+   IN  POS Htr_sparse[N0][PAD16+V],
    IN  uint8_t syndrome_bits[P])
 {
    /* for each block */
@@ -395,8 +395,8 @@ static INLINE void dense_to_u8(
 ////////////////////////////////////////////////////////////////////////////////
 int bfmax_decoder_1(
    OUT DIGIT error[N0*NUM_DIGITS_GF2X_ELEMENT], 
-   IN  POSITION_T H_sparse[N0][PAD32+V], 
-   IN  POSITION_T H_dense[N0][PAD32+V], 
+   IN  POS H_sparse[N0][PAD16+V], 
+   IN  POS H_dense[N0][PAD16+V], 
    IN  DIGIT syndrome[NUM_DIGITS_GF2X_ELEMENT])
 {
    /* expand each syndome bit to u8 */
@@ -409,7 +409,7 @@ int bfmax_decoder_1(
    int iter = 0;
    int hw = population_count(syndrome);
    do {
-      POSITION_T flip = argmax_uint8(upc, N0 * P);
+      POS flip = argmax_uint8(upc, N0 * P);
       int block = flip / P; // quale blocco di HTr
       int x = flip % P;     // di quanto ruotare dentro quel blocco
       gf2x_toggle_coeff(error + block * NUM_DIGITS_GF2X_ELEMENT, x);
@@ -422,8 +422,8 @@ int bfmax_decoder_1(
 ////////////////////////////////////////////////////////////////////////////////
 int bfmax_decoder_2(
    OUT DIGIT error[N0*NUM_DIGITS_GF2X_ELEMENT],
-   IN  POSITION_T Htr_sparse[N0][PAD32+V], 
-   IN  POSITION_T H_sparse[N0][PAD32+V], 
+   IN  POS Htr_sparse[N0][PAD16+V], 
+   IN  POS H_sparse[N0][PAD16+V], 
    IN  DIGIT syndrome[NUM_DIGITS_GF2X_ELEMENT])
 {
    /* expand each syndome bit to u8 */

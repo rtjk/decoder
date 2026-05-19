@@ -36,12 +36,14 @@ unsigned int synd_corrt_vec[][2]= {SYNDROME_TRESH_LOOKUP_TABLE};
 #define POSITION_T            uint32_t
 #define SIGNED_POSITION_T     int32_t
 
-#define POS                   POSITION_T
+#define POS                   uint16_t
 
 ////////////////////////////////////////////////////////////////////////////////
 
 #define I32_IN_YMM            (256/32)
 #define PAD32                 (I32_IN_YMM - 1)
+#define I16_IN_YMM            (256/16)
+#define PAD16                 (I16_IN_YMM - 1)
 
 ////////////////////////////////////////////////////////////////////////////////
 

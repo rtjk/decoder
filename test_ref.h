@@ -22,7 +22,7 @@ DIGIT gf2x_get_coeff(CONST DIGIT poly[], CONST unsigned int exponent)
 }
 ////////////////////////////////////////////////////////////////////////////////
 int bf_decoder(DIGIT out[], // N0 polynomials
-              CONST POSITION_T HtrPosOnes[N0][PAD32+V],
+              CONST POS HtrPosOnes[N0][PAD16+V],
               DIGIT privateSyndrome[]  //  1 polynomial
               )
 {
@@ -41,7 +41,7 @@ int bf_decoder(DIGIT out[], // N0 polynomials
       for (int i = 0; i < N0; i++) {
          for (int valueIdx = 0; valueIdx < P; valueIdx++) {
             for(int HtrOneIdx = 0; HtrOneIdx < V; HtrOneIdx++) {
-               POSITION_T tmp = (HtrPosOnes[i][HtrOneIdx]+valueIdx) >= P ?
+               POS tmp = (HtrPosOnes[i][HtrOneIdx]+valueIdx) >= P ?
                                 (HtrPosOnes[i][HtrOneIdx]+valueIdx) -P : (HtrPosOnes[i][HtrOneIdx]+valueIdx);
                if (gf2x_get_coeff(currSyndrome, tmp))
                   unsatParityChecks[i*P+valueIdx]++;
