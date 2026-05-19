@@ -252,7 +252,7 @@ static INLINE int update_syndrome_and_upcs(
          v_H_row[block][r] = _mm256_loadu_si256((__m256i *)&H_sparse[block][r * 8]);
       }
    }
-   /* update syndrome and upcs */
+   /* update syndrome and save upc positions to update */
    __m256i up_pos[V][N0][N_REGS];
    int up_sign[V];
    for (int col_reg = 0; col_reg < N_REGS; col_reg++) {
@@ -279,11 +279,6 @@ static INLINE int update_syndrome_and_upcs(
                __m256i sub = _mm256_sub_epi32(col, vp);
                __m256i res = _mm256_min_epu32(col, sub);
                up_pos[col_reg * 8 + i][block][row_reg] = res;
-               // uint32_t cols[8];
-               // _mm256_storeu_si256((__m256i *)cols, res);
-               // for (int j = 0; (j < 8) && (row_reg * 8 + j < V); j++) {
-               //    upc[block * P + cols[j]] += delta;
-               // }
             }
          }
       }
@@ -295,9 +290,9 @@ static INLINE int update_syndrome_and_upcs(
       for (int block = 0; block < N0; block++) {
          for (int row_reg = 0; row_reg < N_REGS; row_reg++) {
             for (int lane = 0; (lane < 8) && (row_reg * 8 + lane < V); lane++) {
-               int idx = (((i * N0 + block) * N_REGS + row_reg) * 8) + lane;
-               uint32_t x = up_pos_u32[idx];
-               upc[block * P + x] += delta;
+               int up_idx = (((i * N0 + block) * N_REGS + row_reg) * 8) + lane;
+               uint32_t col = up_pos_u32[up_idx];
+               upc[block * P + col] += delta;
             }
          }
       }
