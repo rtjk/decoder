@@ -34,6 +34,9 @@ void bitslice_half_adder(SLICE_TYPE  addend_a,
                          SLICE_TYPE *result,
                          SLICE_TYPE *carry_out)
 {
+   // TODO:
+   // *result = _mm256_xor_si256(...);
+   // *carry_out = _mm256_and_si256(...);
    _mm256_storeu_si256 (result, _mm256_xor_si256(addend_a, addend_b));
    _mm256_storeu_si256 (carry_out, _mm256_and_si256(addend_a, addend_b));
    return;
