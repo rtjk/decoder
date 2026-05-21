@@ -9,6 +9,7 @@
 - in upc computation and update invert for loops to get single scan of col
 - pad in update_counters_uint8
 - use O3 instead of O2 when profiling with hotspot
+- "preimage" initializaion from qcbits?
 ////////////////////////////////////////////////////////////////////////////////
 - "inline" always capitalized
 - no AVX-512
