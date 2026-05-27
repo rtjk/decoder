@@ -7,7 +7,7 @@
 // - population_count
 // - gf2x_toggle_coeff
 ////////////////////////////////////////////////////////////////////////////////
-#define N_REGS_H ((V + 7) / 8)
+#define N_REGS_H   (PAD32(V) / I32_IN_YMM)
 #define N_REGS_UPC (PAD8(N0 * P) / I8_IN_YMM)
 ////////////////////////////////////////////////////////////////////////////////
 #define WORD_LEVEL_SHIFT word_level_shift_VT
@@ -115,7 +115,8 @@ static INLINE int update_syndrome_and_upcs(
 ////////////////////////////////////////////////////////////////////////////////
 static INLINE DIGIT get_coeff(
    IN DIGIT poly[],
-   IN unsigned int exponent) {
+   IN unsigned int exponent)
+{
    unsigned int straightIdx = (NUM_DIGITS_GF2X_ELEMENT*DIGIT_SIZE_b -1) - exponent;
    unsigned int digitIdx = straightIdx / DIGIT_SIZE_b;
    unsigned int inDigitIdx = straightIdx % DIGIT_SIZE_b;
