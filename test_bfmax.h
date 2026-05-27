@@ -58,7 +58,7 @@ bs_operand_t bitslice_inc(bs_operand_t a, SLICE_TYPE b)
 }
 ////////////////////////////////////////////////////////////////////////////////
 void word_level_shift_VT(DIGIT *RESTRICT shifted_param,
-                         POSITION_T high_shift_amt,
+                         POS high_shift_amt,
                          DIGIT *RESTRICT to_shift)
 {
 
@@ -125,7 +125,7 @@ void word_level_shift_VT(DIGIT *RESTRICT shifted_param,
 }
 ////////////////////////////////////////////////////////////////////////////////
 void gf2x_mod_mul_monom(DIGIT shifted[],
-                        POSITION_T shift_amt,
+                        POS shift_amt,
                         CONST DIGIT to_shift[])
 {
    DIGIT mask;
@@ -135,8 +135,8 @@ void gf2x_mod_mul_monom(DIGIT shifted[],
     */
    /* inter word shifting, done speculatively shifting the entire operand by a
     * power of two, and conditionally committing the result */
-   POSITION_T high_shift_amt = shift_amt >> LO_SHIFT_AMT_BITS;
-   POSITION_T low_shift_amt = shift_amt & (((POSITION_T)1 << LO_SHIFT_AMT_BITS)
+   POS high_shift_amt = shift_amt >> LO_SHIFT_AMT_BITS;
+   POS low_shift_amt = shift_amt & (((POS)1 << LO_SHIFT_AMT_BITS)
                                            -1);
    WORD_LEVEL_SHIFT(shifted,high_shift_amt,(DIGIT * RESTRICT)to_shift);
    /* cyclic shifts inside DIGITs */
@@ -171,136 +171,6 @@ void gf2x_mod_mul_monom(DIGIT shifted[],
                                          low_shift_amt);
    shifted[NUM_DIGITS_GF2X_ELEMENT-1] |=(zeroshift_mask & carryover);
    shifted[0] &= SLACK_CLEAR_MASK;
-}
-////////////////////////////////////////////////////////////////////////////////
-// bs_res   bs_unsatParityChecks + (block * NUM_SLICES_GF2X_ELEMENT)
-// dense    privateSyndrome
-// sparse   HPosOnes[block]
-// nPos     V
-void lift_mul_dense_to_sparse_CT(bs_operand_t bs_res[], CONST DIGIT dense[], CONST POSITION_T sparse[], unsigned int nPos){
-   SLICE_TYPE tmp[NUM_SLICES_GF2X_ELEMENT];
-   for(int i =0; i< nPos; i++) {
-      gf2x_mod_mul_monom((DIGIT *)tmp,sparse[i],dense);     
-      for(int j = 0 ; j < NUM_SLICES_GF2X_ELEMENT; j++) {
-         bs_res[j] = bitslice_inc(bs_res[j], tmp[j]);
-      }
-   }
-}
-////////////////////////////////////////////////////////////////////////////////
-POSITION_T argmax_uint8(CONST uint8_t *arr, size_t len) {
-   size_t i = 0;
-   __m256i max_vec = _mm256_setzero_si256();
-   for (; i <= len - 32; i += 32) {
-      __m256i v = _mm256_loadu_si256((__m256i *)&arr[i]);
-      max_vec = _mm256_max_epu8(max_vec, v);
-   }
-   // horizontal reduction (256 → scalar)
-   __m128i lo = _mm256_castsi256_si128(max_vec);
-   __m128i hi = _mm256_extracti128_si256(max_vec, 1);
-   __m128i m = _mm_max_epu8(lo, hi);
-   m = _mm_max_epu8(m, _mm_srli_si128(m, 8));
-   m = _mm_max_epu8(m, _mm_srli_si128(m, 4));
-   m = _mm_max_epu8(m, _mm_srli_si128(m, 2));
-   m = _mm_max_epu8(m, _mm_srli_si128(m, 1));
-   uint8_t max_val = (uint8_t)_mm_extract_epi8(m, 0);
-   // scalar մն remainder
-   for (; i < len; i++)
-      if (arr[i] > max_val)
-         max_val = arr[i];
-   __m256i vmax = _mm256_set1_epi8((char)max_val);
-   i = 0;
-   for (; i <= len - 32; i += 32) {
-      __m256i v = _mm256_loadu_si256((__m256i *)&arr[i]);
-      __m256i cmp = _mm256_cmpeq_epi8(v, vmax);
-      int mask = _mm256_movemask_epi8(cmp);
-      if (mask) {
-         return (POSITION_T)(i + __builtin_ctz(mask));
-      }
-   }
-   for (; i < len; i++)
-      if (arr[i] == max_val)
-         return (POSITION_T)i;
-   return (POSITION_T)-1;
-}
-////////////////////////////////////////////////////////////////////////////////
-// uint32_t argmax_uint8(uint8_t *arr, size_t len) {
-//    uint32_t max_idx = 0;
-//    uint8_t max_val = 0;
-//    for (uint32_t i = 1; i < len; i++) {
-//       if (arr[i] > max_val) {
-//          max_val = arr[i];
-//          max_idx = i;
-//       }
-//    }
-//    return max_idx;
-// }
-////////////////////////////////////////////////////////////////////////////////
-static INLINE int update_syndrome_and_upcs(
-   OUT uint8_t *upc, 
-   IN  CONST POSITION_T Htr_sparse[N0][PAD32+V], 
-   IN  CONST POSITION_T H_sparse[N0][PAD32+V], 
-   IN  POSITION_T flip, 
-   OUT uint8_t* syndrome_bits,
-   IN  int hw)
-{
-   int flip_block = flip / P;
-   int flip_bit = flip - flip_block * P;
-   __m256i vp = _mm256_set1_epi32((uint32_t)P);
-   __m256i vpos = _mm256_set1_epi32((uint32_t)flip_bit);
-   /* vectorize H_sparse */
-   __m256i v_H_row[N0][N_REGS];
-   for (int block = 0; block < N0; block++) {
-      int r;
-      for (r = 0; r < N_REGS; r++) {
-         v_H_row[block][r] = _mm256_loadu_si256((__m256i *)&H_sparse[block][r * 8]);
-      }
-   }
-   /* update syndrome and save upc positions to update */
-   __m256i up_pos[V][N0][N_REGS];
-   int up_sign[V];
-   for (int col_reg = 0; col_reg < N_REGS; col_reg++) {
-      /* get the column of H corresponding to the flipped bit */
-      uint32_t tmp[8] = {0};
-      __m256i htr = _mm256_loadu_si256((__m256i *)&Htr_sparse[flip_block][col_reg * 8]);
-      __m256i sum = _mm256_add_epi32(htr, vpos);
-      __m256i sub = _mm256_sub_epi32(sum, vp);
-      __m256i res = _mm256_min_epu32(sum, sub);
-      _mm256_storeu_si256((__m256i *)tmp, res);
-      /* scan each idx in the column */
-      for (int i = 0; (i < 8) && (col_reg * 8 + i < V); i++) {
-         /* update the syndrome */
-         POSITION_T row = tmp[i];
-         syndrome_bits[row] ^= 1;
-         int delta = (syndrome_bits[row] == 0) ? -1 : 1;
-         hw += delta;
-         up_sign[col_reg * 8 + i] = delta;
-         /* save upc positions to update (faster than updating upcs directly) */
-         __m256i vrow = _mm256_set1_epi32((uint32_t)row);
-         for (int block = 0; block < N0; block++) {
-            for (int row_reg = 0; row_reg < N_REGS; row_reg++) {
-               __m256i col = _mm256_add_epi32(v_H_row[block][row_reg], vrow);
-               __m256i sub = _mm256_sub_epi32(col, vp);
-               __m256i res = _mm256_min_epu32(col, sub);
-               up_pos[col_reg * 8 + i][block][row_reg] = res;
-            }
-         }
-      }
-   }
-   /* update upcs */
-   uint32_t *up_pos_u32 = (uint32_t *)up_pos;
-   for (int i = 0; i < V; i++) {
-      int delta = up_sign[i];
-      for (int block = 0; block < N0; block++) {
-         for (int row_reg = 0; row_reg < N_REGS; row_reg++) {
-            for (int lane = 0; (lane < 8) && (row_reg * 8 + lane < V); lane++) {
-               int up_idx = (((i * N0 + block) * N_REGS + row_reg) * 8) + lane;
-               uint32_t col = up_pos_u32[up_idx];
-               upc[block * P + col] += delta;
-            }
-         }
-      }
-   }
-   return hw;
 }
 ////////////////////////////////////////////////////////////////////////////////
 static INLINE void gf2x_xor(DIGIT Res[], CONST DIGIT A[], CONST DIGIT B[]){
@@ -341,6 +211,180 @@ void sliced_to_uint8(CONST bs_operand_t* bs, uint8_t* ctrs, int total_elements, 
   }
 }
 ////////////////////////////////////////////////////////////////////////////////
+// bs_res   bs_unsatParityChecks + (block * NUM_SLICES_GF2X_ELEMENT)
+// dense    privateSyndrome
+// sparse   HPosOnes[block]
+// nPos     V
+void lift_mul_dense_to_sparse_CT(bs_operand_t bs_res[], CONST DIGIT dense[], CONST POS sparse[], unsigned int nPos){
+   SLICE_TYPE tmp[NUM_SLICES_GF2X_ELEMENT];
+   for(int i =0; i< nPos; i++) {
+      gf2x_mod_mul_monom((DIGIT *)tmp,sparse[i],dense);     
+      for(int j = 0 ; j < NUM_SLICES_GF2X_ELEMENT; j++) {
+         bs_res[j] = bitslice_inc(bs_res[j], tmp[j]);
+      }
+   }
+}
+////////////////////////////////////////////////////////////////////////////////
+POS argmax_uint8(CONST uint8_t *arr, size_t len) {
+   size_t i = 0;
+   __m256i max_vec = _mm256_setzero_si256();
+   for (; i <= len - 32; i += 32) {
+      __m256i v = _mm256_loadu_si256((__m256i *)&arr[i]);
+      max_vec = _mm256_max_epu8(max_vec, v);
+   }
+   // horizontal reduction (256 → scalar)
+   __m128i lo = _mm256_castsi256_si128(max_vec);
+   __m128i hi = _mm256_extracti128_si256(max_vec, 1);
+   __m128i m = _mm_max_epu8(lo, hi);
+   m = _mm_max_epu8(m, _mm_srli_si128(m, 8));
+   m = _mm_max_epu8(m, _mm_srli_si128(m, 4));
+   m = _mm_max_epu8(m, _mm_srli_si128(m, 2));
+   m = _mm_max_epu8(m, _mm_srli_si128(m, 1));
+   uint8_t max_val = (uint8_t)_mm_extract_epi8(m, 0);
+   // scalar մն remainder
+   for (; i < len; i++)
+      if (arr[i] > max_val)
+         max_val = arr[i];
+   __m256i vmax = _mm256_set1_epi8((char)max_val);
+   i = 0;
+   for (; i <= len - 32; i += 32) {
+      __m256i v = _mm256_loadu_si256((__m256i *)&arr[i]);
+      __m256i cmp = _mm256_cmpeq_epi8(v, vmax);
+      int mask = _mm256_movemask_epi8(cmp);
+      if (mask) {
+         return (POS)(i + __builtin_ctz(mask));
+      }
+   }
+   for (; i < len; i++)
+      if (arr[i] == max_val)
+         return (POS)i;
+   return (POS)-1;
+}
+////////////////////////////////////////////////////////////////////////////////
+// uint32_t argmax_uint8(uint8_t *arr, size_t len) {
+//    uint32_t max_idx = 0;
+//    uint8_t max_val = 0;
+//    for (uint32_t i = 1; i < len; i++) {
+//       if (arr[i] > max_val) {
+//          max_val = arr[i];
+//          max_idx = i;
+//       }
+//    }
+//    return max_idx;
+// }
+////////////////////////////////////////////////////////////////////////////////
+// static INLINE __m256i mm256_u32_sum_mod_P(
+//    __m256i a,
+//    __m256i b)
+// {
+//    const __m256i p    = _mm256_set1_epi32((uint32_t)P);
+//    __m256i sum = _mm256_add_epi32(a, b);
+//    __m256i sub = _mm256_sub_epi32(sum, p);
+//    __m256i res = _mm256_min_epu32(sum, sub);
+//    return res;
+// }
+////////////////////////////////////////////////////////////////////////////////
+static INLINE void expand_H(
+   IN  CONST POS H_sparse[N0][PAD32+V],
+   OUT __m256i H_sparse_exp[N0][P][N_REGS])
+{
+   __m256i p = _mm256_set1_epi32((uint32_t)P);
+   __m256i one = _mm256_set1_epi32((uint32_t)1);
+   /* for each block */
+   for (int block = 0; block < N0; block++) {
+      /* read the indexes in chunks of size YMM */
+      for (int reg = 0; reg < N_REGS; reg++) {
+         __m256i base = _mm256_loadu_si256((__m256i *)&H_sparse[block][reg * 8]);
+         _mm256_storeu_si256((__m256i *)&H_sparse_exp[block][0][reg], base);
+         /* for every row/column */
+         for (int exp = 1; exp < P; exp++) {
+            /* rotate each index */
+            __m256i sum = _mm256_add_epi32(base, one); // TODO: try +exp
+            __m256i sub = _mm256_sub_epi32(sum, p);
+            base = _mm256_min_epu32(sum, sub);
+            /* store the rotated chunk */
+            _mm256_storeu_si256((__m256i *)&H_sparse_exp[block][exp][reg], base);
+         }
+      }
+   }
+}
+////////////////////////////////////////////////////////////////////////////////
+static INLINE int update_syndrome_and_upcs(
+   OUT uint8_t *upc, 
+   IN  CONST POS Htr_sparse[N0][PAD32+V], 
+   IN  CONST POS H_sparse[N0][PAD32+V], 
+   IN  __m256i Htr_sparse_exp[N0][P][N_REGS],
+   IN  __m256i H_sparse_exp[N0][P][N_REGS],
+   IN  POS flip, 
+   OUT uint8_t* syndrome_bits,
+   IN  int hw)
+{
+   int flip_block = flip / P;
+   int flip_bit = flip - flip_block * P;
+   __m256i vp = _mm256_set1_epi32((uint32_t)P);
+   __m256i vpos = _mm256_set1_epi32((uint32_t)flip_bit);
+
+   // /* vectorize H_sparse */
+   // __m256i v_H_row[N0][N_REGS];
+   // for (int block = 0; block < N0; block++) {
+   //    int r;
+   //    for (r = 0; r < N_REGS; r++) {
+   //       v_H_row[block][r] = _mm256_loadu_si256((__m256i *)&H_sparse[block][r * 8]);
+   //    }
+   // }
+
+   /* update syndrome and save upc positions to update */
+   __m256i up_pos[V][N0][N_REGS];
+   int up_sign[V];
+   for (int col_reg = 0; col_reg < N_REGS; col_reg++) {
+      /* get the column of H corresponding to the flipped bit */
+      uint32_t tmp[8] = {0};
+      __m256i htr = _mm256_loadu_si256((__m256i *)&Htr_sparse[flip_block][col_reg * 8]);
+      __m256i sum = _mm256_add_epi32(htr, vpos);
+      __m256i sub = _mm256_sub_epi32(sum, vp);
+      __m256i res = _mm256_min_epu32(sum, sub);
+      // __m256i res = mm256_u32_sum_mod_P(htr, vpos);
+      _mm256_storeu_si256((__m256i *)tmp, res);
+      // _mm256_storeu_si256((__m256i *)tmp, Htr_sparse_exp[flip_block][flip_bit][col_reg]);
+      /* scan each idx in the column */
+      for (int i = 0; (i < 8) && (col_reg * 8 + i < V); i++) {
+         /* update the syndrome */
+         POS row = tmp[i];
+         syndrome_bits[row] ^= 1;
+         int delta = (syndrome_bits[row] == 0) ? -1 : 1;
+         hw += delta;
+         up_sign[col_reg * 8 + i] = delta;
+         /* save upc positions to update (faster than updating upcs directly) */
+         __m256i vrow = _mm256_set1_epi32((uint32_t)row);
+         for (int block = 0; block < N0; block++) {
+            for (int row_reg = 0; row_reg < N_REGS; row_reg++) {
+               // __m256i col = _mm256_add_epi32(v_H_row[block][row_reg], vrow);
+               // __m256i sub = _mm256_sub_epi32(col, vp);
+               // __m256i res = _mm256_min_epu32(col, sub);
+               // __m256i res = mm256_u32_sum_mod_P(v_H_row[block][row_reg], vrow);
+               __m256i res = H_sparse_exp[block][row][row_reg];
+               up_pos[col_reg * 8 + i][block][row_reg] = res;
+            }
+         }
+      }
+   }
+   /* update upcs */
+   uint32_t *up_pos_u32 = (uint32_t *)up_pos;
+   for (int i = 0; i < V; i++) {
+      int delta = up_sign[i];
+      for (int block = 0; block < N0; block++) {
+         for (int row_reg = 0; row_reg < N_REGS; row_reg++) {
+            for (int lane = 0; (lane < 8) && (row_reg * 8 + lane < V); lane++) {
+               int up_idx = (((i * N0 + block) * N_REGS + row_reg) * 8) + lane;
+               uint32_t col = up_pos_u32[up_idx];
+               upc[block * P + col] += delta;
+            }
+         }
+      }
+   }
+   return hw;
+}
+////////////////////////////////////////////////////////////////////////////////
 static INLINE DIGIT get_coeff(
    IN DIGIT poly[],
    IN unsigned int exponent) {
@@ -364,7 +408,7 @@ static INLINE int hamming_weight(
  */
 static INLINE void compute_upcs(
    OUT uint8_t upc[N0 * P],
-   IN  POSITION_T Htr_sparse[N0][PAD32+V],
+   IN  POS Htr_sparse[N0][PAD32+V],
    IN  uint8_t syndrome_bits[P])
 {
    /* for each block */
@@ -398,25 +442,33 @@ static INLINE void dense_to_u8(
 ////////////////////////////////////////////////////////////////////////////////
 int bfmax_decoder_1(
    OUT DIGIT error[N0*NUM_DIGITS_GF2X_ELEMENT], 
-   IN  POSITION_T H_sparse[N0][PAD32+V], 
-   IN  POSITION_T H_dense[N0][PAD32+V], 
+   IN  POS Htr_sparse[N0][PAD32+V], 
+   IN  POS H_sparse[N0][PAD32+V], 
    IN  DIGIT syndrome[NUM_DIGITS_GF2X_ELEMENT])
 {
    /* expand each syndome bit to u8 */
    uint8_t syndrome_bits[P];
    dense_to_u8(syndrome_bits, syndrome, P);
+
+   // 
+   __m256i Htr_sparse_exp[N0][P][N_REGS];
+   // expand_H(Htr_sparse, Htr_sparse_exp);
+   __m256i H_sparse_exp[N0][P][N_REGS];
+   expand_H(H_sparse, H_sparse_exp);
+
    /* compute unsatisfied parity checks */
    ALIGNED uint8_t upc[N0 * P] = {0};
-   compute_upcs(upc, H_sparse, syndrome_bits);
+   compute_upcs(upc, Htr_sparse, syndrome_bits);
    /* decoding iterations */
    int iter = 0;
    int hw = population_count(syndrome);
    do {
-      POSITION_T flip = argmax_uint8(upc, N0 * P);
-      int block = flip / P; // quale blocco di HTr
-      int x = flip % P;     // di quanto ruotare dentro quel blocco
+      POS flip = argmax_uint8(upc, N0 * P);
+      int block = flip / P;
+      int x = flip % P;
       gf2x_toggle_coeff(error + block * NUM_DIGITS_GF2X_ELEMENT, x);
-      hw = update_syndrome_and_upcs(upc, H_sparse, H_dense, flip, syndrome_bits, hw);
+      // hw = update_syndrome_and_upcs(upc, Htr_sparse, H_sparse, flip, syndrome_bits, hw);
+      hw = update_syndrome_and_upcs(upc, Htr_sparse, H_sparse, Htr_sparse_exp, H_sparse_exp, flip, syndrome_bits, hw);
       DEBUG_PRINT("i: %d \t hw(s): %d \n", iter, hw);
       iter++;
    } while ((iter < 1.5 * NUM_ERRORS_T) && (hw != 0));
@@ -425,8 +477,8 @@ int bfmax_decoder_1(
 ////////////////////////////////////////////////////////////////////////////////
 int bfmax_decoder_2(
    OUT DIGIT error[N0*NUM_DIGITS_GF2X_ELEMENT],
-   IN  POSITION_T Htr_sparse[N0][PAD32+V], 
-   IN  POSITION_T H_sparse[N0][PAD32+V], 
+   IN  POS Htr_sparse[N0][PAD32+V], 
+   IN  POS H_sparse[N0][PAD32+V], 
    IN  DIGIT syndrome[NUM_DIGITS_GF2X_ELEMENT])
 {
    /* expand each syndome bit to u8 */

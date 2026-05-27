@@ -33,10 +33,8 @@ unsigned int synd_corrt_vec[][2]= {SYNDROME_TRESH_LOOKUP_TABLE};
 #define SIGNED_DIGIT          int64_t
 #define DIGIT_SIZE_B          8
 #define DIGIT_SIZE_b          (DIGIT_SIZE_B << 3)
-#define POSITION_T            uint32_t
-#define SIGNED_POSITION_T     int32_t
-
-#define POS                   POSITION_T
+#define POS                   uint32_t
+#define SIGNED_POS            int32_t
 
 ////////////////////////////////////////////////////////////////////////////////
 
