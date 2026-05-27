@@ -7,7 +7,7 @@
 // - population_count
 // - gf2x_toggle_coeff
 ////////////////////////////////////////////////////////////////////////////////
-#define N_REGS ((V + 7) / 8)
+#define N_REGS_H ((V + 7) / 8)
 #define N_REGS_UPC (PAD8(N0 * P) / I8_IN_YMM)
 ////////////////////////////////////////////////////////////////////////////////
 #define WORD_LEVEL_SHIFT word_level_shift_VT
@@ -17,13 +17,14 @@
 #define LO_SHIFT_AMT_BITS (BITS_TO_REPRESENT(DIGIT_SIZE_b-1))
 #define HI_SHIFT_AMT_BITS (BITS_TO_REPRESENT(P) - LO_SHIFT_AMT_BITS)
 ////////////////////////////////////////////////////////////////////////////////
-POS argmax_u8(CONST uint8_t *arr) {
+POS argmax_u8(CONST uint8_t arr[PAD8(N0 * P)]) {
+   /* find max */
    __m256i max_vec = _mm256_setzero_si256();
    for (int i = 0; i < N_REGS_UPC; i++) {
       __m256i v = _mm256_loadu_si256((__m256i *)&arr[i * I8_IN_YMM]);
       max_vec = _mm256_max_epu8(max_vec, v);
    }
-   // horizontal reduction (256 → scalar)
+   /* extract max from YMM using horizontal reduction */
    __m128i lo = _mm256_castsi256_si128(max_vec);
    __m128i hi = _mm256_extracti128_si256(max_vec, 1);
    __m128i m = _mm_max_epu8(lo, hi);
@@ -32,30 +33,18 @@ POS argmax_u8(CONST uint8_t *arr) {
    m = _mm_max_epu8(m, _mm_srli_si128(m, 2));
    m = _mm_max_epu8(m, _mm_srli_si128(m, 1));
    uint8_t max_val = (uint8_t)_mm_extract_epi8(m, 0);
+   /* find position of max */
    __m256i vmax = _mm256_set1_epi8((uint8_t)max_val);
    for (int i = 0; i < N_REGS_UPC; i++) {
       __m256i v = _mm256_loadu_si256((__m256i *)&arr[i * I8_IN_YMM]);
       __m256i cmp = _mm256_cmpeq_epi8(v, vmax);
       int mask = _mm256_movemask_epi8(cmp);
-      if (mask)
-      {
+      if (mask) {
          return (POS)(i * I8_IN_YMM + __builtin_ctz(mask));
       }
    }
    return (POS)-1;
 }
-////////////////////////////////////////////////////////////////////////////////
-// uint32_t argmax_u8(uint8_t *arr, size_t len) {
-//    uint32_t max_idx = 0;
-//    uint8_t max_val = 0;
-//    for (uint32_t i = 1; i < len; i++) {
-//       if (arr[i] > max_val) {
-//          max_val = arr[i];
-//          max_idx = i;
-//       }
-//    }
-//    return max_idx;
-// }
 ////////////////////////////////////////////////////////////////////////////////
 static INLINE int update_syndrome_and_upcs(
    OUT uint8_t *upc, 
@@ -70,16 +59,16 @@ static INLINE int update_syndrome_and_upcs(
    __m256i vp = _mm256_set1_epi32((uint32_t)P);
    __m256i vpos = _mm256_set1_epi32((uint32_t)flip_bit);
    /* vectorize H_sparse */
-   __m256i v_H_row[N0][N_REGS];
+   __m256i v_H_row[N0][N_REGS_H];
    for (int block = 0; block < N0; block++) {
-      for (int r = 0; r < N_REGS; r++) {
+      for (int r = 0; r < N_REGS_H; r++) {
          v_H_row[block][r] = _mm256_loadu_si256((__m256i *)&H_sparse[block][r * 8]);
       }
    }
    /* update syndrome and save upc positions to update */
-   __m256i up_pos[V][N0][N_REGS];
+   __m256i up_pos[V][N0][N_REGS_H];
    int up_sign[V];
-   for (int col_reg = 0; col_reg < N_REGS; col_reg++) {
+   for (int col_reg = 0; col_reg < N_REGS_H; col_reg++) {
       /* get the column of H corresponding to the flipped bit */
       uint32_t tmp[8] = {0};
       __m256i htr = _mm256_loadu_si256((__m256i *)&Htr_sparse[flip_block][col_reg * 8]);
@@ -98,7 +87,7 @@ static INLINE int update_syndrome_and_upcs(
          /* save upc positions to update (faster than updating upcs directly) */
          __m256i vrow = _mm256_set1_epi32((uint32_t)row);
          for (int block = 0; block < N0; block++) {
-            for (int row_reg = 0; row_reg < N_REGS; row_reg++) {
+            for (int row_reg = 0; row_reg < N_REGS_H; row_reg++) {
                __m256i col = _mm256_add_epi32(v_H_row[block][row_reg], vrow);
                __m256i sub = _mm256_sub_epi32(col, vp);
                __m256i res = _mm256_min_epu32(col, sub);
@@ -112,9 +101,9 @@ static INLINE int update_syndrome_and_upcs(
    for (int i = 0; i < V; i++) {
       int delta = up_sign[i];
       for (int block = 0; block < N0; block++) {
-         for (int row_reg = 0; row_reg < N_REGS; row_reg++) {
+         for (int row_reg = 0; row_reg < N_REGS_H; row_reg++) {
             for (int lane = 0; (lane < 8) && (row_reg * 8 + lane < V); lane++) {
-               int up_idx = (((i * N0 + block) * N_REGS + row_reg) * 8) + lane;
+               int up_idx = (((i * N0 + block) * N_REGS_H + row_reg) * 8) + lane;
                uint32_t col = up_pos_u32[up_idx];
                upc[block * P + col] += delta;
             }
@@ -179,7 +168,7 @@ static INLINE void dense_to_u8(
    }
 }
 ////////////////////////////////////////////////////////////////////////////////
-int bfmax_decoder_1(
+int bfmax_decoder(
    OUT DIGIT error[N0*NUM_DIGITS_GF2X_ELEMENT], 
    IN  POS Htr_sparse[N0][PAD32(V)], 
    IN  POS H_sparse[N0][PAD32(V)], 

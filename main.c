@@ -61,7 +61,7 @@ int main() {
         /* decode */
         count_1 = CPUCYCLES(test);
         // uint8_t ret = bf_decoder(e_out_dense, Htr_sparse, s_dense);
-        uint8_t ret = bfmax_decoder_1(e_out_dense, Htr_sparse, H_sparse, s_dense);
+        uint8_t ret = bfmax_decoder(e_out_dense, Htr_sparse, H_sparse, s_dense);
         count_2 = CPUCYCLES(test);
 
         /* compare error vectors */
