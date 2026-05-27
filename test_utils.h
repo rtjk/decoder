@@ -37,7 +37,7 @@ void gf2x_set_coeff(DIGIT poly[], CONST unsigned int exponent, DIGIT value)
 }
 ////////////////////////////////////////////////////////////////////////////////
 static INLINE void gf2x_mod_densify_VT(DIGIT dense[NUM_DIGITS_GF2X_ELEMENT],
-                         CONST POSITION_T exponent[],
+                         CONST POS exponent[],
                          int num_exponents)
 {
    for(int j=0; j<num_exponents; j++) {
@@ -45,8 +45,8 @@ static INLINE void gf2x_mod_densify_VT(DIGIT dense[NUM_DIGITS_GF2X_ELEMENT],
    }
 }
 ////////////////////////////////////////////////////////////////////////////////
-void transposeHPosOnes(POSITION_T HtrPosOnes[N0][PAD32+V], /* output*/
-                       POSITION_T CONST HPosOnes[N0][PAD32+V]
+void transposeHPosOnes(POS HtrPosOnes[N0][PAD32+V], /* output*/
+                       POS CONST HPosOnes[N0][PAD32+V]
                       )
 {
    for (int i = 0; i < N0; i++) {
@@ -58,7 +58,7 @@ void transposeHPosOnes(POSITION_T HtrPosOnes[N0][PAD32+V], /* output*/
 } // end transposeHPosOnes
 ////////////////////////////////////////////////////////////////////////////////
 void util_densify_error(DIGIT dense[N0*NUM_DIGITS_GF2X_ELEMENT],
-                        CONST POSITION_T positions[])
+                        CONST POS positions[])
 {
    for(int j=0; j<NUM_ERRORS_T; j++) {
       int block = positions[j] / P;
@@ -132,7 +132,7 @@ void gf2x_fmac(DIGIT Res[],
 ////////////////////////////////////////////////////////////////////////////////
 void gf2x_mod_mul_dense_to_sparse(DIGIT Res[],
                                   CONST DIGIT dense[],
-                                  CONST POSITION_T sparse[],
+                                  CONST POS sparse[],
                                   unsigned int nPos)
 {
    DIGIT resDouble[2*NUM_DIGITS_GF2X_ELEMENT] = {0};
@@ -154,13 +154,13 @@ void gf2x_mod_mul_dense_to_sparse(DIGIT Res[],
 void util_compute_syndrome(
    OUT DIGIT s_dense[NUM_DIGITS_GF2X_ELEMENT],
    IN  DIGIT Htr_dense[N0][NUM_DIGITS_GF2X_ELEMENT],
-   IN  POSITION_T e_sparse[NUM_ERRORS_T])
+   IN  POS e_sparse[NUM_ERRORS_T])
 {
    int i;
    DIGIT saux[NUM_DIGITS_GF2X_ELEMENT];
    unsigned int filled;
    memset(s_dense, 0x00, NUM_DIGITS_GF2X_ELEMENT*DIGIT_SIZE_B);
-   POSITION_T blkErrorPos[NUM_ERRORS_T];
+   POS blkErrorPos[NUM_ERRORS_T];
    for (i = 0; i < N0; i++) {
       filled=0;
       for (int j = 0 ; j < NUM_ERRORS_T; j++) {

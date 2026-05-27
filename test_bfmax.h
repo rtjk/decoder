@@ -58,7 +58,7 @@ bs_operand_t bitslice_inc(bs_operand_t a, SLICE_TYPE b)
 }
 ////////////////////////////////////////////////////////////////////////////////
 void word_level_shift_VT(DIGIT *RESTRICT shifted_param,
-                         POSITION_T high_shift_amt,
+                         POS high_shift_amt,
                          DIGIT *RESTRICT to_shift)
 {
 
@@ -125,7 +125,7 @@ void word_level_shift_VT(DIGIT *RESTRICT shifted_param,
 }
 ////////////////////////////////////////////////////////////////////////////////
 void gf2x_mod_mul_monom(DIGIT shifted[],
-                        POSITION_T shift_amt,
+                        POS shift_amt,
                         CONST DIGIT to_shift[])
 {
    DIGIT mask;
@@ -135,8 +135,8 @@ void gf2x_mod_mul_monom(DIGIT shifted[],
     */
    /* inter word shifting, done speculatively shifting the entire operand by a
     * power of two, and conditionally committing the result */
-   POSITION_T high_shift_amt = shift_amt >> LO_SHIFT_AMT_BITS;
-   POSITION_T low_shift_amt = shift_amt & (((POSITION_T)1 << LO_SHIFT_AMT_BITS)
+   POS high_shift_amt = shift_amt >> LO_SHIFT_AMT_BITS;
+   POS low_shift_amt = shift_amt & (((POS)1 << LO_SHIFT_AMT_BITS)
                                            -1);
    WORD_LEVEL_SHIFT(shifted,high_shift_amt,(DIGIT * RESTRICT)to_shift);
    /* cyclic shifts inside DIGITs */
@@ -177,7 +177,7 @@ void gf2x_mod_mul_monom(DIGIT shifted[],
 // dense    privateSyndrome
 // sparse   HPosOnes[block]
 // nPos     V
-void lift_mul_dense_to_sparse_CT(bs_operand_t bs_res[], CONST DIGIT dense[], CONST POSITION_T sparse[], unsigned int nPos){
+void lift_mul_dense_to_sparse_CT(bs_operand_t bs_res[], CONST DIGIT dense[], CONST POS sparse[], unsigned int nPos){
    SLICE_TYPE tmp[NUM_SLICES_GF2X_ELEMENT];
    for(int i =0; i< nPos; i++) {
       gf2x_mod_mul_monom((DIGIT *)tmp,sparse[i],dense);     
@@ -187,7 +187,7 @@ void lift_mul_dense_to_sparse_CT(bs_operand_t bs_res[], CONST DIGIT dense[], CON
    }
 }
 ////////////////////////////////////////////////////////////////////////////////
-POSITION_T argmax_uint8(CONST uint8_t *arr, size_t len) {
+POS argmax_uint8(CONST uint8_t *arr, size_t len) {
    size_t i = 0;
    __m256i max_vec = _mm256_setzero_si256();
    for (; i <= len - 32; i += 32) {
@@ -214,13 +214,13 @@ POSITION_T argmax_uint8(CONST uint8_t *arr, size_t len) {
       __m256i cmp = _mm256_cmpeq_epi8(v, vmax);
       int mask = _mm256_movemask_epi8(cmp);
       if (mask) {
-         return (POSITION_T)(i + __builtin_ctz(mask));
+         return (POS)(i + __builtin_ctz(mask));
       }
    }
    for (; i < len; i++)
       if (arr[i] == max_val)
-         return (POSITION_T)i;
-   return (POSITION_T)-1;
+         return (POS)i;
+   return (POS)-1;
 }
 ////////////////////////////////////////////////////////////////////////////////
 // uint32_t argmax_uint8(uint8_t *arr, size_t len) {
@@ -237,9 +237,9 @@ POSITION_T argmax_uint8(CONST uint8_t *arr, size_t len) {
 ////////////////////////////////////////////////////////////////////////////////
 static INLINE int update_syndrome_and_upcs(
    OUT uint8_t *upc, 
-   IN  CONST POSITION_T Htr_sparse[N0][PAD32+V], 
-   IN  CONST POSITION_T H_sparse[N0][PAD32+V], 
-   IN  POSITION_T flip, 
+   IN  CONST POS Htr_sparse[N0][PAD32+V], 
+   IN  CONST POS H_sparse[N0][PAD32+V], 
+   IN  POS flip, 
    OUT uint8_t* syndrome_bits,
    IN  int hw)
 {
@@ -269,7 +269,7 @@ static INLINE int update_syndrome_and_upcs(
       /* scan each idx in the column */
       for (int i = 0; (i < 8) && (col_reg * 8 + i < V); i++) {
          /* update the syndrome */
-         POSITION_T row = tmp[i];
+         POS row = tmp[i];
          syndrome_bits[row] ^= 1;
          int delta = (syndrome_bits[row] == 0) ? -1 : 1;
          hw += delta;
@@ -364,7 +364,7 @@ static INLINE int hamming_weight(
  */
 static INLINE void compute_upcs(
    OUT uint8_t upc[N0 * P],
-   IN  POSITION_T Htr_sparse[N0][PAD32+V],
+   IN  POS Htr_sparse[N0][PAD32+V],
    IN  uint8_t syndrome_bits[P])
 {
    /* for each block */
@@ -398,8 +398,8 @@ static INLINE void dense_to_u8(
 ////////////////////////////////////////////////////////////////////////////////
 int bfmax_decoder_1(
    OUT DIGIT error[N0*NUM_DIGITS_GF2X_ELEMENT], 
-   IN  POSITION_T H_sparse[N0][PAD32+V], 
-   IN  POSITION_T H_dense[N0][PAD32+V], 
+   IN  POS Htr_sparse[N0][PAD32+V], 
+   IN  POS H_sparse[N0][PAD32+V], 
    IN  DIGIT syndrome[NUM_DIGITS_GF2X_ELEMENT])
 {
    /* expand each syndome bit to u8 */
@@ -407,16 +407,16 @@ int bfmax_decoder_1(
    dense_to_u8(syndrome_bits, syndrome, P);
    /* compute unsatisfied parity checks */
    ALIGNED uint8_t upc[N0 * P] = {0};
-   compute_upcs(upc, H_sparse, syndrome_bits);
+   compute_upcs(upc, Htr_sparse, syndrome_bits);
    /* decoding iterations */
    int iter = 0;
    int hw = population_count(syndrome);
    do {
-      POSITION_T flip = argmax_uint8(upc, N0 * P);
+      POS flip = argmax_uint8(upc, N0 * P);
       int block = flip / P; // quale blocco di HTr
       int x = flip % P;     // di quanto ruotare dentro quel blocco
       gf2x_toggle_coeff(error + block * NUM_DIGITS_GF2X_ELEMENT, x);
-      hw = update_syndrome_and_upcs(upc, H_sparse, H_dense, flip, syndrome_bits, hw);
+      hw = update_syndrome_and_upcs(upc, Htr_sparse, H_sparse, flip, syndrome_bits, hw);
       DEBUG_PRINT("i: %d \t hw(s): %d \n", iter, hw);
       iter++;
    } while ((iter < 1.5 * NUM_ERRORS_T) && (hw != 0));
@@ -425,8 +425,8 @@ int bfmax_decoder_1(
 ////////////////////////////////////////////////////////////////////////////////
 int bfmax_decoder_2(
    OUT DIGIT error[N0*NUM_DIGITS_GF2X_ELEMENT],
-   IN  POSITION_T Htr_sparse[N0][PAD32+V], 
-   IN  POSITION_T H_sparse[N0][PAD32+V], 
+   IN  POS Htr_sparse[N0][PAD32+V], 
+   IN  POS H_sparse[N0][PAD32+V], 
    IN  DIGIT syndrome[NUM_DIGITS_GF2X_ELEMENT])
 {
    /* expand each syndome bit to u8 */
