@@ -10,6 +10,7 @@
 - pad in update_counters_uint8
 - use O3 instead of O2 when profiling with hotspot
 - "preimage" initializaion from qcbits?
+- use correct padding instead of PAD32 and PAD8
 ////////////////////////////////////////////////////////////////////////////////
 - "inline" always capitalized
 - no AVX-512

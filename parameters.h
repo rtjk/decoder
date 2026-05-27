@@ -39,7 +39,12 @@ unsigned int synd_corrt_vec[][2]= {SYNDROME_TRESH_LOOKUP_TABLE};
 ////////////////////////////////////////////////////////////////////////////////
 
 #define I32_IN_YMM            (256/32)
-#define PAD32                 (I32_IN_YMM - 1)
+/* round up to the nearest multiple of I32_IN_YMM */
+#define PAD32(x)              (((x) + I32_IN_YMM - 1) & ~(I32_IN_YMM - 1))
+
+#define I8_IN_YMM             (256/8)
+/* round up to the nearest multiple of I8_IN_YMM */
+#define PAD8(x)               (((x) + I8_IN_YMM - 1) & ~(I8_IN_YMM - 1))
 
 ////////////////////////////////////////////////////////////////////////////////
 

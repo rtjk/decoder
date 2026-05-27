@@ -4,11 +4,11 @@
 #include "test_utils.h"
 ////////////////////////////////////////////////////////////////////////////////
 // from test_utils:
-// - gf2x_mod_densify_VT
 // - population_count
 // - gf2x_toggle_coeff
 ////////////////////////////////////////////////////////////////////////////////
 #define N_REGS ((V + 7) / 8)
+#define N_REGS_UPC (PAD8(N0 * P) / I8_IN_YMM)
 ////////////////////////////////////////////////////////////////////////////////
 #define WORD_LEVEL_SHIFT word_level_shift_VT
 #define SLACK_SIZE (DIGIT_SIZE_b-(P%DIGIT_SIZE_b))
@@ -17,22 +17,10 @@
 #define LO_SHIFT_AMT_BITS (BITS_TO_REPRESENT(DIGIT_SIZE_b-1))
 #define HI_SHIFT_AMT_BITS (BITS_TO_REPRESENT(P) - LO_SHIFT_AMT_BITS)
 ////////////////////////////////////////////////////////////////////////////////
-// #define BITSLICED_OPERAND_WIDTH (BITS_TO_REPRESENT(V)+1)
-#define BITSLICED_OPERAND_WIDTH (BITS_TO_REPRESENT(V))
-#define SLICE_TYPE __m256i
-#define NUM_BITS_IN_BITSLICED_OP (256)
-// TODO: reduce
-#define NUM_SLICES_GF2X_ELEMENT ( (NUM_DIGITS_GF2X_ELEMENT+3)/ (NUM_BITS_IN_BITSLICED_OP/DIGIT_SIZE_b) )
-////////////////////////////////////////////////////////////////////////////////
-typedef struct {
-   SLICE_TYPE slice[BITSLICED_OPERAND_WIDTH];
-} bs_operand_t;
-////////////////////////////////////////////////////////////////////////////////
-POS argmax_u8(CONST uint8_t *arr, size_t len) {
-   size_t i = 0;
+POS argmax_u8(CONST uint8_t *arr) {
    __m256i max_vec = _mm256_setzero_si256();
-   for (; i <= len - 32; i += 32) {
-      __m256i v = _mm256_loadu_si256((__m256i *)&arr[i]);
+   for (int i = 0; i < N_REGS_UPC; i++) {
+      __m256i v = _mm256_loadu_si256((__m256i *)&arr[i * I8_IN_YMM]);
       max_vec = _mm256_max_epu8(max_vec, v);
    }
    // horizontal reduction (256 → scalar)
@@ -44,23 +32,16 @@ POS argmax_u8(CONST uint8_t *arr, size_t len) {
    m = _mm_max_epu8(m, _mm_srli_si128(m, 2));
    m = _mm_max_epu8(m, _mm_srli_si128(m, 1));
    uint8_t max_val = (uint8_t)_mm_extract_epi8(m, 0);
-   // scalar մն remainder
-   for (; i < len; i++)
-      if (arr[i] > max_val)
-         max_val = arr[i];
-   __m256i vmax = _mm256_set1_epi8((char)max_val);
-   i = 0;
-   for (; i <= len - 32; i += 32) {
-      __m256i v = _mm256_loadu_si256((__m256i *)&arr[i]);
+   __m256i vmax = _mm256_set1_epi8((uint8_t)max_val);
+   for (int i = 0; i < N_REGS_UPC; i++) {
+      __m256i v = _mm256_loadu_si256((__m256i *)&arr[i * I8_IN_YMM]);
       __m256i cmp = _mm256_cmpeq_epi8(v, vmax);
       int mask = _mm256_movemask_epi8(cmp);
-      if (mask) {
-         return (POS)(i + __builtin_ctz(mask));
+      if (mask)
+      {
+         return (POS)(i * I8_IN_YMM + __builtin_ctz(mask));
       }
    }
-   for (; i < len; i++)
-      if (arr[i] == max_val)
-         return (POS)i;
    return (POS)-1;
 }
 ////////////////////////////////////////////////////////////////////////////////
@@ -78,8 +59,8 @@ POS argmax_u8(CONST uint8_t *arr, size_t len) {
 ////////////////////////////////////////////////////////////////////////////////
 static INLINE int update_syndrome_and_upcs(
    OUT uint8_t *upc, 
-   IN  CONST POS Htr_sparse[N0][PAD32+V], 
-   IN  CONST POS H_sparse[N0][PAD32+V], 
+   IN  CONST POS Htr_sparse[N0][PAD32(V)], 
+   IN  CONST POS H_sparse[N0][PAD32(V)], 
    IN  POS flip, 
    OUT uint8_t* syndrome_bits,
    IN  int hw)
@@ -91,8 +72,7 @@ static INLINE int update_syndrome_and_upcs(
    /* vectorize H_sparse */
    __m256i v_H_row[N0][N_REGS];
    for (int block = 0; block < N0; block++) {
-      int r;
-      for (r = 0; r < N_REGS; r++) {
+      for (int r = 0; r < N_REGS; r++) {
          v_H_row[block][r] = _mm256_loadu_si256((__m256i *)&H_sparse[block][r * 8]);
       }
    }
@@ -166,8 +146,8 @@ static INLINE int hamming_weight(
  *     upc[c] += s[r] & H[r][c]
  */
 static INLINE void compute_upcs(
-   OUT uint8_t upc[N0 * P],
-   IN  POS Htr_sparse[N0][PAD32+V],
+   OUT uint8_t upc[PAD8(N0 * P)],
+   IN  POS Htr_sparse[N0][PAD32(V)],
    IN  uint8_t syndrome_bits[P])
 {
    /* for each block */
@@ -201,21 +181,21 @@ static INLINE void dense_to_u8(
 ////////////////////////////////////////////////////////////////////////////////
 int bfmax_decoder_1(
    OUT DIGIT error[N0*NUM_DIGITS_GF2X_ELEMENT], 
-   IN  POS Htr_sparse[N0][PAD32+V], 
-   IN  POS H_sparse[N0][PAD32+V], 
+   IN  POS Htr_sparse[N0][PAD32(V)], 
+   IN  POS H_sparse[N0][PAD32(V)], 
    IN  DIGIT syndrome[NUM_DIGITS_GF2X_ELEMENT])
 {
    /* expand each syndome bit to u8 */
    uint8_t syndrome_bits[P];
    dense_to_u8(syndrome_bits, syndrome, P);
    /* compute unsatisfied parity checks */
-   ALIGNED uint8_t upc[N0 * P] = {0};
+   ALIGNED uint8_t upc[PAD8(N0 * P)] = {0};
    compute_upcs(upc, Htr_sparse, syndrome_bits);
    /* decoding iterations */
    int iter = 0;
    int hw = population_count(syndrome);
    do {
-      POS col = argmax_u8(upc, N0 * P);
+      POS col = argmax_u8(upc);
       int col_block = col / P;
       int col_bit = col % P;
       gf2x_toggle_coeff(error + col_block * NUM_DIGITS_GF2X_ELEMENT, col_bit);
