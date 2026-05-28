@@ -70,20 +70,20 @@ static INLINE int update_syndrome_and_upcs(
    int up_sign[V];
    for (int col_reg = 0; col_reg < N_REGS_H; col_reg++) {
       /* get the column of H corresponding to the flipped bit */
-      uint32_t tmp[8] = {0};
-      __m256i htr = _mm256_loadu_si256((__m256i *)&Htr_sparse[flip_block][col_reg * 8]);
+      uint32_t tmp[I32_IN_YMM] = {0};
+      __m256i htr = _mm256_loadu_si256((__m256i *)&Htr_sparse[flip_block][col_reg * I32_IN_YMM]);
       __m256i sum = _mm256_add_epi32(htr, vpos);
       __m256i sub = _mm256_sub_epi32(sum, vp);
       __m256i res = _mm256_min_epu32(sum, sub);
       _mm256_storeu_si256((__m256i *)tmp, res);
       /* scan each idx in the column */
-      for (int i = 0; (i < 8) && (col_reg * 8 + i < V); i++) {
+      for (int i = 0; (i < I32_IN_YMM) && (col_reg * I32_IN_YMM + i < V); i++) {
          /* update the syndrome */
          POS row = tmp[i];
          syndrome_bits[row] ^= 1;
          int delta = (syndrome_bits[row] == 0) ? -1 : 1;
          hw += delta;
-         up_sign[col_reg * 8 + i] = delta;
+         up_sign[col_reg * I32_IN_YMM + i] = delta;
          /* save upc positions to update (faster than updating upcs directly) */
          __m256i vrow = _mm256_set1_epi32((uint32_t)row);
          for (int block = 0; block < N0; block++) {
@@ -91,7 +91,7 @@ static INLINE int update_syndrome_and_upcs(
                __m256i col = _mm256_add_epi32(v_H_row[block][row_reg], vrow);
                __m256i sub = _mm256_sub_epi32(col, vp);
                __m256i res = _mm256_min_epu32(col, sub);
-               up_pos[col_reg * 8 + i][block][row_reg] = res;
+               up_pos[col_reg * I32_IN_YMM + i][block][row_reg] = res;
             }
          }
       }
