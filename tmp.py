@@ -22,13 +22,11 @@ def compute_upcs(H_sparse, s, r, v):
 def fixed_counters_decrement(Htr_sparse, H_sparse, r, v):
     fixed_decr = []
     for block in range(2):
-        #Set up syndrome for current block
         dense_s_block = vector(ZZ,r)
+        # copy first column of the block
         for i in range(v):
             pos_toggle = Htr_sparse[block][i]
             dense_s_block[pos_toggle] = 1
-        # alla fine di questo abbiamo densificato le colonne
-        # ottengo il decremento accumulando lo shift di HTr[0] per le H_sparse
         decr = compute_upcs(H_sparse, dense_s_block, r, v)
         fixed_decr.append(decr)
     return fixed_decr
