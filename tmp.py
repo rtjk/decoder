@@ -33,68 +33,46 @@ def fixed_counters_decrement(Htr_sparse, H_sparse, r, v):
 
 ################################################################################
 
-def counters_update_steroids(Htr_sparse, H_sparse, fixed_decr, s, r, v, pos, upc):
-
+def update_upc(Htr_sparse, H_sparse, fixed_decr, s, r, v, pos, upc):
     block = pos//r
     shift = pos%r
-    
-    shifted_incr = vector(ZZ, 2*r)
+    # update upcs: -1
+    shifted_decr = vector(ZZ, 2*r)
     for i in range(2):
         for j in range(r):
             new_pos = i*r + ((j+shift)%r)
-            shifted_incr[new_pos] = fixed_decr[block][i*r+j]
-    
-    upc += (-shifted_incr)
-    
-    #Now, correct 
+            shifted_decr[new_pos] = fixed_decr[block][i*r+j]
+    upc += (-shifted_decr)
+    # update upcs: +2
     for i in range(v):
         row_index = (Htr_sparse[block][i] + shift)%r
-        d = s[row_index] #if d = 1, decrease counters; otherwise, increase
-        
-        if d == 0:
-            #update all counters
+        if s[row_index] == 0:
             for j in range(2):
-                for ell in range(v):
-                    pos_toggle = j*r + (H_sparse[j][ell] + row_index)%r
+                for k in range(v):
+                    pos_toggle = j*r + (H_sparse[j][k] + row_index)%r
                     upc[pos_toggle] += 2
-
     return upc
 
 ################################################################################
 
 def bfmax_steroids(Htr_sparse, H_sparse, fixed_decr, s, r, v, num_iter_max):
-    
-    dec_e = vector(GF(2), 2*r) #error estimate
-    
-    w_s = s.list().count(1) #syndrome weight
+    error = vector(GF(2), 2*r)
+    hw = s.list().count(1)
     num_iter = 0
-    
     upc = compute_upcs(H_sparse, s.change_ring(ZZ), r, v)
-    
-    while (w_s != 0) & (num_iter < num_iter_max):
-        
+    while (hw != 0) & (num_iter < num_iter_max):
         pos = argmax(upc)
-
-        print(f"At iteration {num_iter} the value of the max counter is {upc[pos]}")
-
-        #Flip position in dec_e
-        dec_e[pos] += 1
-        
-        #Update counters
-        upc = counters_update_steroids(Htr_sparse, H_sparse, fixed_decr, s, r, v, pos, upc);
-
-        #Flip syndrome
+        error[pos] += 1
+        upc = update_upc(Htr_sparse, H_sparse, fixed_decr, s, r, v, pos, upc);
+        # update syndrome
         block = pos // r
         shift = pos % r
         for i in range(v):
             pos_toggle = (Htr_sparse[block][i]+shift)%r
             s[pos_toggle] += 1
-        
-        #Update syndrome weight and number of iterations
-        w_s = s.list().count(1) #syndrome weight        
+        hw = s.list().count(1)
         num_iter += 1
-        
-    return dec_e
+    return error
 
 ################################################################################
 
