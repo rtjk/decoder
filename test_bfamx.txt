@@ -22,6 +22,14 @@ uint32_t argmax_u8(uint8_t *arr, size_t len) {
    return max_idx;
 }
 ////////////////////////////////////////////////////////////////////////////////
+static INLINE int hamming_weight(
+   IN uint8_t a[P])
+{
+   int hw = 0;
+   for (int i = 0; i < P; i++) hw += a[i];
+   return hw;
+}
+////////////////////////////////////////////////////////////////////////////////
 static INLINE
 void bitslice_half_adder(SLICE_TYPE  addend_a,
                          SLICE_TYPE  addend_b,

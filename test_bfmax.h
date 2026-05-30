@@ -17,7 +17,7 @@
 #define LO_SHIFT_AMT_BITS (BITS_TO_REPRESENT(DIGIT_SIZE_b-1))
 #define HI_SHIFT_AMT_BITS (BITS_TO_REPRESENT(P) - LO_SHIFT_AMT_BITS)
 ////////////////////////////////////////////////////////////////////////////////
-POS argmax_u8(CONST uint8_t arr[PAD8(N0 * P)]) {
+static INLINE POS argmax_u8(CONST uint8_t arr[PAD8(N0 * P)]) {
    /* find max */
    __m256i max_vec = _mm256_setzero_si256();
    for (int i = 0; i < N_REGS_UPC; i++) {
@@ -121,14 +121,6 @@ static INLINE DIGIT get_coeff(
    unsigned int digitIdx = straightIdx / DIGIT_SIZE_b;
    unsigned int inDigitIdx = straightIdx % DIGIT_SIZE_b;
    return (poly[digitIdx] >> (DIGIT_SIZE_b-1-inDigitIdx)) & ((DIGIT) 1) ;
-}
-////////////////////////////////////////////////////////////////////////////////
-static INLINE int hamming_weight(
-   IN uint8_t a[P])
-{
-   int hw = 0;
-   for (int i = 0; i < P; i++) hw += a[i];
-   return hw;
 }
 ////////////////////////////////////////////////////////////////////////////////
 /* for r in rows
