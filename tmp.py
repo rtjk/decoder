@@ -76,6 +76,9 @@ def bfmax_steroids(Htr_sparse, H_sparse, fixed_decr, s, r, v, num_iter_max):
 
 ################################################################################
 
+# size: N0 x ( N0 x P )
+# first half:  H_*_0 @ H_*_0 | H_*_1 @ H_*_0 | ... | H_*_(N0xP-1) @ H_*_0
+# second half: H_*_0 @ H_*_1 | H_*_1 @ H_*_1 | ... | H_*_(N0xP-1) @ H_*_1
 fixed_decr = compute_fixed_decr(Htr_sparse, H_sparse, r, v)
 
 ################################################################################

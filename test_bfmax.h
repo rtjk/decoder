@@ -110,6 +110,13 @@ static INLINE int update_syndrome_and_upcs(
          }
       }
    }
+
+   // // print upcs for debugging
+   // for (int i = 0; i < N0 * P; i++){
+   //    printf("%d ", upc[i]);
+   //    if ((i + 1) % P == 0) printf("\n");
+   // }
+
    return hw;
 }
 ////////////////////////////////////////////////////////////////////////////////
@@ -173,19 +180,140 @@ int bfmax_decoder(
    /* compute unsatisfied parity checks */
    ALIGNED uint8_t upc[PAD8(N0 * P)] = {0};
    compute_upcs(upc, Htr_sparse, syndrome_bits);
+
+   // // print upcs for debugging
+   // for (int i = 0; i < N0 * P; i++){
+   //    printf("%d ", upc[i]);
+   //    if ((i + 1) % P == 0) printf("\n");
+   // }
+   // printf("\n");
+
    /* decoding iterations */
    int iter = 0;
    int hw = population_count(syndrome);
    do {
       POS col = argmax_u8(upc);
+
+      // printf("flip: %d\n", col);
+
       int col_block = col / P;
       int col_bit = col % P;
       gf2x_toggle_coeff(error + col_block * NUM_DIGITS_GF2X_ELEMENT, col_bit);
       hw = update_syndrome_and_upcs(upc, Htr_sparse, H_sparse, col, syndrome_bits, hw);
+
+      // // print syndrome
+      // printf("syndrome: ");
+      // for (int i = 0; i < P; i++) {
+      //    printf("%d", syndrome_bits[i]);
+      // }
+      // printf("\n");
+
+      DEBUG_PRINT("i: %d \t hw(s): %d \n", iter, hw);
+      iter++;
+   } while ((iter < 1.5 * NUM_ERRORS_T) && (hw != 0));
+   return 1;
+}
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+static INLINE int update_syndrome_and_upcs_steroids(
+   OUT int8_t upc[PAD8(N0 * P)], 
+   IN  CONST POS Htr_sparse[N0][PAD32(V)], 
+   IN  CONST POS H_sparse[N0][PAD32(V)], 
+   IN  POS flip, 
+   OUT uint8_t syndrome_bits[P],
+   IN  int hw,
+   IN  uint8_t fixed_decr[N0][PAD8(N0 * P)])
+{
+   int flip_block = flip / P;
+   int flip_bit = flip - flip_block * P;
+
+   /* update upcs: -1 */
+   for (int block = 0; block < N0; block++) {
+      for (int i = 0; i < P; i++) {
+         upc[block * P + i] -= fixed_decr[flip_block][block * P + (i - flip_bit + P) % P];
+      }
+   }
+   /* update upcs: +2 */
+   for (int i = 0; i < V; i++) {
+      int idx = (Htr_sparse[flip_block][i] + flip_bit) % P;
+      if (syndrome_bits[idx] == 0) {
+         for (int block = 0; block < N0; block++) {
+            for (int j = 0; j < V; j++) {
+               int up_idx = block * P + (H_sparse[block][j] + idx) % P;
+               upc[up_idx] += 2;
+            }
+         }
+      }
+   }
+   /* update syndrome */
+   for (int i = 0; i < V; i++) {
+      int idx = (Htr_sparse[flip_block][i] + flip_bit) % P;
+      syndrome_bits[idx] ^= 1;
+      hw += (syndrome_bits[idx] == 0) ? -1 : 1;
+   }
+   // // print upcs for debugging
+   // for (int i = 0; i < N0 * P; i++){
+   //    printf("%d ", upc[i]);
+   //    if ((i + 1) % P == 0) printf("\n");
+   // }
+
+   return hw;
+}
+////////////////////////////////////////////////////////////////////////////////
+int bfmax_decoder_steroids(
+   OUT DIGIT error[N0*NUM_DIGITS_GF2X_ELEMENT], 
+   IN  POS Htr_sparse[N0][PAD32(V)], 
+   IN  POS H_sparse[N0][PAD32(V)], 
+   IN  DIGIT Htr_dense[N0][NUM_DIGITS_GF2X_ELEMENT],
+   IN  DIGIT H_dense[N0][NUM_DIGITS_GF2X_ELEMENT],
+   IN  DIGIT syndrome[NUM_DIGITS_GF2X_ELEMENT])
+{
+   /* expand each syndome bit to u8 */
+   uint8_t syndrome_bits[P];
+   dense_to_u8(syndrome_bits, syndrome, P);
+   /* compute unsatisfied parity checks */
+   ALIGNED uint8_t upc[PAD8(N0 * P)] = {0};
+   compute_upcs(upc, Htr_sparse, syndrome_bits);
+
+   /* compute fixed decrement */
+   ALIGNED uint8_t fixed_decr[N0][PAD8(N0 * P)] = {0};
+   uint8_t Htr_dense_bits_0[P];
+   uint8_t Htr_dense_bits_1[P];
+   dense_to_u8(Htr_dense_bits_0, Htr_dense[0], P);
+   dense_to_u8(Htr_dense_bits_1, Htr_dense[1], P);
+   compute_upcs(fixed_decr[0], Htr_sparse, Htr_dense_bits_0);
+   compute_upcs(fixed_decr[1], Htr_sparse, Htr_dense_bits_1);
+
+   // // print upcs for debugging
+   // for (int i = 0; i < N0 * P; i++){
+   //    printf("%d ", upc[i]);
+   //    if ((i + 1) % P == 0) printf("\n");
+   // }
+   // printf("\n");
+
+   /* decoding iterations */
+   int iter = 0;
+   int hw = population_count(syndrome);
+   do {
+      POS col = argmax_u8(upc);
+
+      // printf("flip: %d\n", col);
+
+      int col_block = col / P;
+      int col_bit = col % P;
+      gf2x_toggle_coeff(error + col_block * NUM_DIGITS_GF2X_ELEMENT, col_bit);
+      hw = update_syndrome_and_upcs_steroids((int8_t *)upc, Htr_sparse, H_sparse, col, syndrome_bits, hw, fixed_decr);
+      
+      // // print syndrome
+      // printf("syndrome: ");
+      // for (int i = 0; i < P; i++) {
+      //    printf("%d", syndrome_bits[i]);
+      // }
+      // printf("\n");
+
       DEBUG_PRINT("i: %d \t hw(s): %d \n", iter, hw);
       iter++;
    } while ((iter < 1.5 * NUM_ERRORS_T) && (hw != 0));
    return 1;
 }
 ////////////////////////////////////////////////////////////////////////////////
-

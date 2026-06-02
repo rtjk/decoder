@@ -58,10 +58,29 @@ int main() {
         /* compute syndrome */
         util_compute_syndrome(s_dense, Htr_dense, e_in_sparse);
 
+
+        // // print H sparse
+        // printf("H sparse:\n");
+        // for (int block = 0; block < N0; block++) {
+        //     for (int i = 0; i < V; i++) {
+        //         printf("%d ", H_sparse[block][i]);
+        //     }
+        //     printf("\n");
+        // }
+        // // print error sparse
+        // printf("Error sparse:\n");
+        // for (int i = 0; i < NUM_ERRORS_T; i++) {
+        //     printf("%d ", e_in_sparse[i]);
+        // }
+        // printf("\n");
+        // //
+        // printf("\n\n");
+
         /* decode */
         count_1 = CPUCYCLES(test);
         // uint8_t ret = bf_decoder(e_out_dense, Htr_sparse, s_dense);
-        uint8_t ret = bfmax_decoder(e_out_dense, Htr_sparse, H_sparse, s_dense);
+        // uint8_t ret = bfmax_decoder(e_out_dense, Htr_sparse, H_sparse, s_dense);
+        uint8_t ret = bfmax_decoder_steroids(e_out_dense, Htr_sparse, H_sparse, Htr_dense, H_dense, s_dense);
         count_2 = CPUCYCLES(test);
 
         /* compare error vectors */

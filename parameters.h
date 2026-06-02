@@ -15,6 +15,12 @@
 #define NUM_ERRORS_T    (133)
 #define CATEGORY        (1)
 
+// #define P               (108)
+// #define N0              (2)
+// #define V               (7)
+// #define NUM_ERRORS_T    (2)
+// #define CATEGORY        (1)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 #define SYNDROME_TRESH_LOOKUP_TABLE { 0, 38},\

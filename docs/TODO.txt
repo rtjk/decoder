@@ -11,6 +11,8 @@
 - use O3 instead of O2 when profiling with hotspot
 - "preimage" initializaion from qcbits?
 - use correct padding instead of PAD32 and PAD8
+- compute v_H_row only once
+- update the syndorme and compute hw before updating upcs, so you can early stop
 ////////////////////////////////////////////////////////////////////////////////
 - "inline" always capitalized
 - no AVX-512
