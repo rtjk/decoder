@@ -200,7 +200,7 @@ static INLINE int update_syndrome_and_upcs_steroids(
 {
    int flip_block = flip / P;
    int flip_bit = flip - flip_block * P;
-   /* update upcs: -1 */
+   /* update upcs: -fixed */
    for (int block = 0; block < N0; block++) {
       for (int i = 0; i < P; i++) {
          upc[block * P + i] -= fixed_decr[flip_block][block * P + (i - flip_bit + P) % P];

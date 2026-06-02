@@ -36,7 +36,7 @@ def compute_fixed_decr(Htr_sparse, H_sparse, r, v):
 def update_upc(Htr_sparse, H_sparse, fixed_decr, s, r, v, pos, upc):
     block = pos//r
     shift = pos%r
-    # update upcs: -1
+    # update upcs: -fixed
     shifted_decr = vector(ZZ, 2*r)
     for i in range(2):
         for j in range(r):
