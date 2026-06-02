@@ -203,7 +203,7 @@ static INLINE int update_syndrome_and_upcs_steroids(
    /* update upcs: -fixed */
    for (int block = 0; block < N0; block++) {
       for (int i = 0; i < P; i++) {
-         upc[block * P + i] -= fixed_decr[flip_block][block * P + (i - flip_bit + P) % P];
+         upc[block * P + (i + flip_bit) % P] -= fixed_decr[flip_block][block * P + i];
       }
    }
    /* update upcs: +2 */
