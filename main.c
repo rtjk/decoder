@@ -58,11 +58,20 @@ int main() {
         /* compute syndrome */
         util_compute_syndrome(s_dense, Htr_dense, e_in_sparse);
 
+        /* compute fixed decrement */
+        ALIGNED uint8_t fixed_decr[N0][PAD8(N0 * P)] = {0};
+        uint8_t Htr_dense_bits_0[P];
+        uint8_t Htr_dense_bits_1[P];
+        dense_to_u8(Htr_dense_bits_0, Htr_dense[0], P);
+        dense_to_u8(Htr_dense_bits_1, Htr_dense[1], P);
+        compute_upcs(fixed_decr[0], Htr_sparse, Htr_dense_bits_0);
+        compute_upcs(fixed_decr[1], Htr_sparse, Htr_dense_bits_1);
+
         /* decode */
         count_1 = CPUCYCLES(test);
         // uint8_t ret = bf_decoder(e_out_dense, Htr_sparse, s_dense);
         // uint8_t ret = bfmax_decoder(e_out_dense, Htr_sparse, H_sparse, s_dense);
-        uint8_t ret = bfmax_decoder_steroids(e_out_dense, Htr_sparse, H_sparse, Htr_dense, H_dense, s_dense);
+        uint8_t ret = bfmax_decoder_steroids(e_out_dense, Htr_sparse, H_sparse, s_dense, fixed_decr);
         count_2 = CPUCYCLES(test);
 
         /* compare error vectors */

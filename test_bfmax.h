@@ -200,7 +200,6 @@ static INLINE int update_syndrome_and_upcs_steroids(
 {
    int flip_block = flip / P;
    int flip_bit = flip - flip_block * P;
-
    /* update upcs: -1 */
    for (int block = 0; block < N0; block++) {
       for (int i = 0; i < P; i++) {
@@ -218,10 +217,7 @@ static INLINE int update_syndrome_and_upcs_steroids(
             }
          }
       }
-   }
-   /* update syndrome */
-   for (int i = 0; i < V; i++) {
-      int idx = (Htr_sparse[flip_block][i] + flip_bit) % P;
+      /* update syndrome */
       syndrome_bits[idx] ^= 1;
       hw += (syndrome_bits[idx] == 0) ? -1 : 1;
    }
@@ -232,9 +228,8 @@ int bfmax_decoder_steroids(
    OUT DIGIT error[N0*NUM_DIGITS_GF2X_ELEMENT], 
    IN  POS Htr_sparse[N0][PAD32(V)], 
    IN  POS H_sparse[N0][PAD32(V)], 
-   IN  DIGIT Htr_dense[N0][NUM_DIGITS_GF2X_ELEMENT],
-   IN  DIGIT H_dense[N0][NUM_DIGITS_GF2X_ELEMENT],
-   IN  DIGIT syndrome[NUM_DIGITS_GF2X_ELEMENT])
+   IN  DIGIT syndrome[NUM_DIGITS_GF2X_ELEMENT],
+   IN  uint8_t fixed_decr[N0][PAD8(N0 * P)])
 {
    /* expand each syndome bit to u8 */
    uint8_t syndrome_bits[P];
@@ -242,15 +237,6 @@ int bfmax_decoder_steroids(
    /* compute unsatisfied parity checks */
    ALIGNED uint8_t upc[PAD8(N0 * P)] = {0};
    compute_upcs(upc, Htr_sparse, syndrome_bits);
-
-   /* compute fixed decrement */
-   ALIGNED uint8_t fixed_decr[N0][PAD8(N0 * P)] = {0};
-   uint8_t Htr_dense_bits_0[P];
-   uint8_t Htr_dense_bits_1[P];
-   dense_to_u8(Htr_dense_bits_0, Htr_dense[0], P);
-   dense_to_u8(Htr_dense_bits_1, Htr_dense[1], P);
-   compute_upcs(fixed_decr[0], Htr_sparse, Htr_dense_bits_0);
-   compute_upcs(fixed_decr[1], Htr_sparse, Htr_dense_bits_1);
    /* decoding iterations */
    int iter = 0;
    int hw = population_count(syndrome);
