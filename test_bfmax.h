@@ -47,11 +47,11 @@ static INLINE POS argmax_u8(CONST uint8_t arr[PAD8(N0 * P)]) {
 }
 ////////////////////////////////////////////////////////////////////////////////
 static INLINE int update_syndrome_and_upcs(
-   OUT uint8_t *upc, 
+   OUT uint8_t upc[PAD8(N0 * P)], 
    IN  CONST POS Htr_sparse[N0][PAD32(V)], 
    IN  CONST POS H_sparse[N0][PAD32(V)], 
    IN  POS flip, 
-   OUT uint8_t* syndrome_bits,
+   OUT uint8_t syndrome_bits[P],
    IN  int hw)
 {
    int flip_block = flip / P;
