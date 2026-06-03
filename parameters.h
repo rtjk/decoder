@@ -38,6 +38,11 @@ unsigned int synd_corrt_vec[][2]= {SYNDROME_TRESH_LOOKUP_TABLE};
 
 ////////////////////////////////////////////////////////////////////////////////
 
+/* number of 64-bit integers that fit inside a YMM register */
+#define I64_IN_YMM            (256/64)
+/* round up the size of an array of 64-bit integers to fit inside YMM regs */
+#define PAD64(x)              (((x) + I64_IN_YMM - 1) & ~(I64_IN_YMM - 1))
+
 /* number of 32-bit integers that fit inside a YMM register */
 #define I32_IN_YMM            (256/32)
 /* round up the size of an array of 32-bit integers to fit inside YMM regs */

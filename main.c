@@ -58,9 +58,9 @@ int main() {
         /* compute syndrome */
         util_compute_syndrome(s_dense, Htr_dense, e_in_sparse);
 
-        /* fully densify H and H^T */
-        static uint64_t H_full_dense[N0][P][NUM_DIGITS_GF2X_ELEMENT] = {0};
-        static uint64_t Htr_full_dense[N0][P][NUM_DIGITS_GF2X_ELEMENT] = {0};
+        /* densify every row/column of H and H^T */
+        // static uint64_t H_full_dense[N0][P][PAD64(NUM_DIGITS_GF2X_ELEMENT)] = {0};
+        uint64_t (*H_full_dense)[P][PAD64(NUM_DIGITS_GF2X_ELEMENT)] = calloc(N0, sizeof(*H_full_dense));
         for (int block = 0; block < N0; block++) {
             for (int row = 0; row < P; row++) {
                 for (int i = 0; i < V; i++) {
@@ -69,20 +69,15 @@ int main() {
                 }
             }
         }
-        for (int block = 0; block < N0; block++) {
-            for (int col = 0; col < P; col++) {
-                for (int i = 0; i < V; i++) {
-                    int idx = (Htr_sparse[block][i] + col) % P;
-                    gf2x_set_coeff(Htr_full_dense[block][col], idx, 1);
-                }
-            }
-        }
 
         /* decode */
         count_1 = CPUCYCLES(test);
         // uint8_t ret = bf_decoder(e_out_dense, Htr_sparse, s_dense);
-        uint8_t ret = bfmax_decoder(e_out_dense, Htr_sparse, H_sparse, Htr_full_dense, H_full_dense, s_dense);
+        // uint8_t ret = bfmax_decoder(e_out_dense, Htr_sparse, H_sparse, s_dense);
+        uint8_t ret = bfmax_decoder_full_dense(e_out_dense, Htr_sparse, H_sparse, H_full_dense, s_dense);
         count_2 = CPUCYCLES(test);
+
+        free(H_full_dense);
 
         /* compare error vectors */
         uint8_t cmp = memcmp(e_out_dense, e_in_dense, N0*NUM_DIGITS_GF2X_ELEMENT*sizeof(uint64_t));
