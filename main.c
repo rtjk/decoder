@@ -33,14 +33,14 @@ int main() {
 
     for (int test = 0; test < TESTS + WARMUP; test++) {
 
-        uint64_t s_dense[NUM_DIGITS_GF2X_ELEMENT] = {0};        // syndrome (dense)
-        uint64_t e_out_dense[N0*NUM_DIGITS_GF2X_ELEMENT] = {0}; // output error vector (dense)
-        uint64_t e_in_dense[N0*NUM_DIGITS_GF2X_ELEMENT] = {0};  // input error vector (dense)
-        uint32_t e_in_sparse[NUM_ERRORS_T] = {0};               // input error vector (sparse)
-        ALIGNED uint32_t H_sparse[N0][PAD32(V)] = {0};          // H (sparse)
-        ALIGNED uint32_t Htr_sparse[N0][PAD32(V)] = {0};        // H^T (sparse)
-        uint64_t H_dense[N0][NUM_DIGITS_GF2X_ELEMENT] = {0};    // H (dense)
-        uint64_t Htr_dense[N0][NUM_DIGITS_GF2X_ELEMENT] = {0};  // H^T (dense)
+        uint64_t s_dense[NUM_DIGITS_GF2X_ELEMENT] = {0};            // syndrome (dense)
+        uint64_t e_out_dense[N0*NUM_DIGITS_GF2X_ELEMENT] = {0};     // output error vector (dense)
+        uint64_t e_in_dense[N0*NUM_DIGITS_GF2X_ELEMENT] = {0};      // input error vector (dense)
+        uint32_t e_in_sparse[NUM_ERRORS_T] = {0};                   // input error vector (sparse)
+        ALIGNED uint32_t H_sparse[N0][PAD32(V)] = {0};              // H (sparse)
+        ALIGNED uint32_t Htr_sparse[N0][PAD32(V)] = {0};            // H^T (sparse)
+        uint64_t H_dense[N0][NUM_DIGITS_GF2X_ELEMENT] = {0};        // H (dense)
+        uint64_t Htr_dense[N0][NUM_DIGITS_GF2X_ELEMENT] = {0};      // H^T (dense)
 
         /* sample H */
         for(int block = 0; block < N0; block++) {
@@ -58,10 +58,30 @@ int main() {
         /* compute syndrome */
         util_compute_syndrome(s_dense, Htr_dense, e_in_sparse);
 
+        /* fully densify H and H^T */
+        static uint64_t H_full_dense[N0][P][NUM_DIGITS_GF2X_ELEMENT] = {0};
+        static uint64_t Htr_full_dense[N0][P][NUM_DIGITS_GF2X_ELEMENT] = {0};
+        for (int block = 0; block < N0; block++) {
+            for (int row = 0; row < P; row++) {
+                for (int i = 0; i < V; i++) {
+                    int idx = (H_sparse[block][i] + row) % P;
+                    gf2x_set_coeff(H_full_dense[block][row], idx, 1);
+                }
+            }
+        }
+        for (int block = 0; block < N0; block++) {
+            for (int col = 0; col < P; col++) {
+                for (int i = 0; i < V; i++) {
+                    int idx = (Htr_sparse[block][i] + col) % P;
+                    gf2x_set_coeff(Htr_full_dense[block][col], idx, 1);
+                }
+            }
+        }
+
         /* decode */
         count_1 = CPUCYCLES(test);
         // uint8_t ret = bf_decoder(e_out_dense, Htr_sparse, s_dense);
-        uint8_t ret = bfmax_decoder(e_out_dense, Htr_sparse, H_sparse, s_dense);
+        uint8_t ret = bfmax_decoder(e_out_dense, Htr_sparse, H_sparse, Htr_full_dense, H_full_dense, s_dense);
         count_2 = CPUCYCLES(test);
 
         /* compare error vectors */

@@ -11,10 +11,10 @@
 #define N_REGS_UPC (PAD8(N0 * P) / I8_IN_YMM)
 ////////////////////////////////////////////////////////////////////////////////
 #define WORD_LEVEL_SHIFT word_level_shift_VT
-#define SLACK_SIZE (DIGIT_SIZE_b-(P%DIGIT_SIZE_b))
-#define SLACK_CLEAR_MASK ( ((DIGIT) 0 - 1) >> (DIGIT_SIZE_b-(P%DIGIT_SIZE_b)))
-#define SLACK_EXTRACT(digit_to_extract)  (digit_to_extract >> (P%DIGIT_SIZE_b) )
-#define LO_SHIFT_AMT_BITS (BITS_TO_REPRESENT(DIGIT_SIZE_b-1))
+#define SLACK_SIZE (DIGIT_SIZE_b - (P % DIGIT_SIZE_b))
+#define SLACK_CLEAR_MASK (((DIGIT)0 - 1) >> (DIGIT_SIZE_b - (P % DIGIT_SIZE_b)))
+#define SLACK_EXTRACT(digit_to_extract) (digit_to_extract >> (P % DIGIT_SIZE_b))
+#define LO_SHIFT_AMT_BITS (BITS_TO_REPRESENT(DIGIT_SIZE_b - 1))
 #define HI_SHIFT_AMT_BITS (BITS_TO_REPRESENT(P) - LO_SHIFT_AMT_BITS)
 ////////////////////////////////////////////////////////////////////////////////
 static INLINE POS argmax_u8(CONST uint8_t arr[PAD8(N0 * P)]) {
@@ -165,6 +165,8 @@ int bfmax_decoder(
    OUT DIGIT error[N0*NUM_DIGITS_GF2X_ELEMENT], 
    IN  POS Htr_sparse[N0][PAD32(V)], 
    IN  POS H_sparse[N0][PAD32(V)], 
+   IN  DIGIT Htr_full_dense[N0][P][NUM_DIGITS_GF2X_ELEMENT],
+   IN  DIGIT H_full_dense[N0][P][NUM_DIGITS_GF2X_ELEMENT],
    IN  DIGIT syndrome[NUM_DIGITS_GF2X_ELEMENT])
 {
    /* expand each syndome bit to u8 */
