@@ -37,8 +37,8 @@ int main() {
         uint64_t e_out_dense[N0*NUM_DIGITS_GF2X_ELEMENT] = {0}; // output error vector (dense)
         uint64_t e_in_dense[N0*NUM_DIGITS_GF2X_ELEMENT] = {0};  // input error vector (dense)
         uint32_t e_in_sparse[NUM_ERRORS_T] = {0};               // input error vector (sparse)
-        ALIGNED uint32_t H_sparse[N0][PAD32(V)] = {0};           // H (sparse)
-        ALIGNED uint32_t Htr_sparse[N0][PAD32(V)] = {0};         // H^T (sparse)
+        ALIGNED uint32_t H_sparse[N0][PAD32(V)] = {0};          // H (sparse)
+        ALIGNED uint32_t Htr_sparse[N0][PAD32(V)] = {0};        // H^T (sparse)
         uint64_t H_dense[N0][NUM_DIGITS_GF2X_ELEMENT] = {0};    // H (dense)
         uint64_t Htr_dense[N0][NUM_DIGITS_GF2X_ELEMENT] = {0};  // H^T (dense)
 
