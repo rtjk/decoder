@@ -200,29 +200,16 @@ typedef struct {
    SLICE slice[BITS_FOR_V];
 } SLICE_BUNDLE;
 ////////////////////////////////////////////////////////////////////////////////
-static INLINE void bs_half_adder(SLICE addend_a,
-                                 SLICE addend_b,
-                                 SLICE *result,
-                                 SLICE *carry_out)
-{
-   // TODO:
-   // *result = _mm256_xor_si256(...);
-   // *carry_out = _mm256_and_si256(...);
-   _mm256_storeu_si256(result, _mm256_xor_si256(addend_a, addend_b));
-   _mm256_storeu_si256(carry_out, _mm256_and_si256(addend_a, addend_b));
-   return;
-}
-////////////////////////////////////////////////////////////////////////////////
 static INLINE SLICE_BUNDLE bs_increment(SLICE_BUNDLE a, SLICE b)
 {
    SLICE_BUNDLE result;
-   SLICE carry;
-   bs_half_adder(a.slice[0], b, &(result.slice[0]), &carry);
-   for (int i = 1; i < BITS_FOR_V; i++) {
-      bs_half_adder(a.slice[i],
-                    carry,
-                    &(result.slice[i]),
-                    &carry);
+   SLICE carry = _mm256_and_si256(a.slice[0], b);
+   result.slice[0] = _mm256_xor_si256(a.slice[0], b);
+   for (int i = 1; i < BITS_FOR_V; i++)
+   {
+      SLICE ai = a.slice[i];
+      result.slice[i] = _mm256_xor_si256(ai, carry);
+      carry = _mm256_and_si256(ai, carry);
    }
    return result;
 }
@@ -230,16 +217,12 @@ static INLINE SLICE_BUNDLE bs_increment(SLICE_BUNDLE a, SLICE b)
 static INLINE SLICE_BUNDLE bs_decrement(SLICE_BUNDLE a, SLICE b)
 {
    SLICE_BUNDLE result;
-   SLICE carry;
-   bs_half_adder(~a.slice[0], b, &(result.slice[0]), &carry);
-   result.slice[0] = ~result.slice[0];
+   SLICE borrow = _mm256_andnot_si256(a.slice[0], b);
+   result.slice[0] = _mm256_xor_si256(a.slice[0], b);
    for (int i = 1; i < BITS_FOR_V; i++) {
-      bs_half_adder(~a.slice[i],
-                    carry,
-                    &(result.slice[i]),
-                    &carry);
-
-      result.slice[i] = ~result.slice[i];
+      SLICE ai = a.slice[i];
+      result.slice[i] = _mm256_xor_si256(ai, borrow);
+      borrow = _mm256_andnot_si256(ai, borrow);
    }
    return result;
 }
