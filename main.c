@@ -59,7 +59,7 @@ int main() {
         util_compute_syndrome(s_dense, Htr_dense, e_in_sparse);
 
         /* densify every row/column of H and H^T (dynamic allocation, too big for the stack) */
-        // static uint64_t H_full_dense[N0][P][PAD64(NUM_DIGITS_GF2X_ELEMENT)] = {0};
+        // uint64_t H_full_dense[N0][P][PAD64(NUM_DIGITS_GF2X_ELEMENT)] = {0};
         uint64_t (*H_full_dense)[P][PAD64(NUM_DIGITS_GF2X_ELEMENT)] = calloc(N0, sizeof(*H_full_dense));
         for (int block = 0; block < N0; block++) {
             for (int row = 0; row < P; row++) {

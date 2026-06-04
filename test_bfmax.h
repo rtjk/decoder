@@ -415,7 +415,6 @@ static INLINE int bs_argmax(SLICE_BUNDLE bs_upc[N0 * SLICES_OF_P])
 static INLINE int bs_update_syndrome_and_upcs(
    OUT SLICE_BUNDLE bs_upc[N0 * SLICES_OF_P],
    IN  CONST POS Htr_sparse[N0][PAD32(V)], 
-   IN  CONST POS H_sparse[N0][PAD32(V)], 
    IN  DIGIT H_full_dense[N0][P][PAD64(NUM_DIGITS_GF2X_ELEMENT)],
    IN  POS flip, 
    OUT uint8_t syndrome_bits[P],
@@ -425,7 +424,7 @@ static INLINE int bs_update_syndrome_and_upcs(
    int flip_bit = flip - flip_block * P;
    __m256i vp = _mm256_set1_epi32((uint32_t)P);
    __m256i vpos = _mm256_set1_epi32((uint32_t)flip_bit);
-   /* update syndrome and save upcs */
+   /* update syndrome and upcs */
    for (int col_reg = 0; col_reg < N_REGS_H; col_reg++) {
       /* get the column of H corresponding to the flipped bit */
       uint32_t tmp[I32_IN_YMM] = {0};
@@ -480,7 +479,7 @@ int bfmax_decoder_full_dense(
       int col_block = col / P;
       int col_bit = col % P;
       gf2x_toggle_coeff(error + col_block * NUM_DIGITS_GF2X_ELEMENT, col_bit);
-      hw = bs_update_syndrome_and_upcs(bs_upc, Htr_sparse, H_sparse, H_full_dense, col, syndrome_bits, hw);
+      hw = bs_update_syndrome_and_upcs(bs_upc, Htr_sparse, H_full_dense, col, syndrome_bits, hw);
       DEBUG_PRINT("i: %d \t hw(s): %d \n", iter, hw);
       iter++;
    } while ((iter < 1.5 * NUM_ERRORS_T) && (hw != 0));

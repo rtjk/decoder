@@ -11,6 +11,7 @@
 - use O3 instead of O2 when profiling with hotspot
 - "preimage" initializaion from qcbits?
 - use correct padding instead of PAD32 and PAD8
+- __attribute__((noinline))
 ////////////////////////////////////////////////////////////////////////////////
 - "inline" always capitalized
 - no AVX-512
