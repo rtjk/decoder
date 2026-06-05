@@ -430,26 +430,6 @@ static INLINE int bs_update_syndrome_and_upcs(
    int dec_count = 0;
    int inc_count = 0;
 
-   /* get the positions of H corresponding to the flipped bit */
-   for (int i = 0; i < V; i++) {
-      int idx = (Htr_sparse[flip_block][i] + flip_bit) % P;
-      if (syndrome[idx / DIGIT_SIZE_b] & ((DIGIT)1 << (DIGIT_SIZE_b - 1 - (idx % DIGIT_SIZE_b)))) {
-         dec[dec_count] = idx;
-         dec_count++;
-      } else {
-         inc[inc_count] = idx;
-         inc_count++;
-      }
-   }
-   printf("inc: ");
-   for (int i = 0; i < inc_count; i++) {
-      printf("%d ", inc[i]);
-   }
-   printf("\n");
-
-   dec_count = 0;
-   inc_count = 0;
-
    /* get the column of H corresponding to the flipped bit */
    DIGIT Htr_col_dense[NUM_DIGITS_GF2X_ELEMENT] = {0};
    gf2x_mod_mul_monom(Htr_col_dense, flip_bit, Htr_dense[flip_block]);
@@ -458,19 +438,19 @@ static INLINE int bs_update_syndrome_and_upcs(
       DIGIT syn = syndrome[dig];
       DIGIT col = Htr_col_dense[dig];
       syndrome[dig] ^= col;
-      /* save positions for decrements (syndrome 1->0) */
+      /* save positions for decrements (syndrome bit 1->0) */
       DIGIT d = syn & col;
       while (d) {
-         POS pos = __builtin_clzll(d);
-         dec[dec_count] = dig * DIGIT_SIZE_b + (DIGIT_SIZE_b - 1 - pos);
+         POS pos = __builtin_ctzll(d);
+         dec[dec_count] = (NUM_DIGITS_GF2X_ELEMENT*DIGIT_SIZE_b -1) - (dig * DIGIT_SIZE_b + (DIGIT_SIZE_b - 1 - pos));
          dec_count++;
          d &= d - 1;
       }
-      /* save positions for increments (syndrome 0->1) */
+      /* save positions for increments (syndrome bit 0->1) */
       d = ~syn & col;
       while (d) {
-         POS pos = __builtin_clzll(d);
-         inc[inc_count] = dig * DIGIT_SIZE_b + (DIGIT_SIZE_b - 1 - pos);
+         POS pos = __builtin_ctzll(d);
+         inc[inc_count] = (NUM_DIGITS_GF2X_ELEMENT*DIGIT_SIZE_b -1) - (dig * DIGIT_SIZE_b + (DIGIT_SIZE_b - 1 - pos));
          inc_count++;
          d &= d - 1;
       }
@@ -496,18 +476,6 @@ static INLINE int bs_update_syndrome_and_upcs(
          }
       }
    }
-   // print dec and inc
-   printf("inc: ");
-   for (int i = 0; i < inc_count; i++) {
-      printf("%d ", inc[i]);
-   }
-   // printf("\n");
-   // printf("dec: ");
-   // for (int i = 0; i < dec_count; i++) {
-   //    printf("%d ", dec[i]);
-   // }
-   printf("\n");
-   printf("inc + dec: %d\n", inc_count + dec_count);
    return hw;
 }
 ////////////////////////////////////////////////////////////////////////////////
@@ -522,7 +490,6 @@ int bfmax_decoder_full_dense(
    /* compute unsatisfied parity checks */
    SLICE_BUNDLE bs_upc[N0 * SLICES_OF_P];
    bs_compute_upcs(bs_upc, H_sparse, syndrome);
-
    /* decoding iterations */
    int iter = 0;
    int hw = population_count(syndrome);
