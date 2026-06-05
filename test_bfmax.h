@@ -413,6 +413,29 @@ static INLINE int bs_argmax(SLICE_BUNDLE bs_upc[N0 * SLICES_OF_P])
    return circulant_block * P + j;
 }
 ////////////////////////////////////////////////////////////////////////////////
+static INLINE void bs_upc_inc_dec(
+   OUT SLICE_BUNDLE bs_upc[N0 * SLICES_OF_P],
+   IN  DIGIT H_full_dense[N0][P][PAD64(NUM_DIGITS_GF2X_ELEMENT)],
+   IN  uint8_t inc_dec_flag, // 0 for dec, 1 for inc
+   IN  POS positions[V],
+   IN  int count)
+{
+   for (int i = 0; i < count; i++) {
+      POS row = positions[i];
+      for (int block = 0; block < N0; block++) {
+         int block_offset = block * SLICES_OF_P;
+         for (int j = 0; j < SLICES_OF_P; j++) {
+            __m256i H_vec = _mm256_loadu_si256((__m256i *)&H_full_dense[block][row][j * 4]);
+            if (inc_dec_flag) {
+               bs_upc[block_offset + j] = bs_increment(bs_upc[block_offset + j], H_vec);
+            } else {
+               bs_upc[block_offset + j] = bs_decrement(bs_upc[block_offset + j], H_vec);
+            }
+         }
+      }
+   }
+}
+////////////////////////////////////////////////////////////////////////////////
 static INLINE int bs_update_syndrome_and_upcs(
    OUT SLICE_BUNDLE bs_upc[N0 * SLICES_OF_P],
    IN  CONST POS Htr_sparse[N0][PAD32(V)], 
@@ -454,26 +477,9 @@ static INLINE int bs_update_syndrome_and_upcs(
       }
    }
    hw = population_count(syndrome);
-   /* decrement upcs */
-   for (int i = 0; i < dec_count; i++) {
-      POS row = dec[i];
-      for (int block = 0; block < N0; block++) {
-         for (int j = 0; j < SLICES_OF_P; j++) {
-            __m256i H_vec = _mm256_loadu_si256((__m256i *)&H_full_dense[block][row][j * 4]);
-            bs_upc[block * SLICES_OF_P + j] = bs_decrement(bs_upc[block * SLICES_OF_P + j], H_vec);
-         }
-      }
-   }
-   /* increment upcs */
-   for (int i = 0; i < inc_count; i++) {
-      POS row = inc[i];
-      for (int block = 0; block < N0; block++) {
-         for (int j = 0; j < SLICES_OF_P; j++) {
-            __m256i H_vec = _mm256_loadu_si256((__m256i *)&H_full_dense[block][row][j * 4]);
-            bs_upc[block * SLICES_OF_P + j] = bs_increment(bs_upc[block * SLICES_OF_P + j], H_vec);
-         }
-      }
-   }
+   /* update upcs */
+   bs_upc_inc_dec(bs_upc, H_full_dense, 0, dec, dec_count);
+   bs_upc_inc_dec(bs_upc, H_full_dense, 1, inc, inc_count);
    return hw;
 }
 ////////////////////////////////////////////////////////////////////////////////
