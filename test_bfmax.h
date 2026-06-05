@@ -424,12 +424,10 @@ static INLINE int bs_update_syndrome_and_upcs(
 {
    int flip_block = flip / P;
    int flip_bit = flip - flip_block * P;
-
    POS dec[V];
    POS inc[V];
    int dec_count = 0;
    int inc_count = 0;
-
    /* get the column of H corresponding to the flipped bit */
    DIGIT Htr_col_dense[NUM_DIGITS_GF2X_ELEMENT] = {0};
    gf2x_mod_mul_monom(Htr_col_dense, flip_bit, Htr_dense[flip_block]);
