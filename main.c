@@ -58,10 +58,15 @@ int main() {
         /* compute syndrome */
         util_compute_syndrome(s_dense, Htr_dense, e_in_sparse);
 
+        /* expand each syndome bit to u8 */
+        uint8_t syndrome_bits[P];
+        dense_to_u8(syndrome_bits, s_dense, P);
+        int hw = population_count(s_dense);
+
         /* decode */
         count_1 = CPUCYCLES(test);
         // uint8_t ret = bf_decoder(e_out_dense, Htr_sparse, s_dense);
-        uint8_t ret = bfmax_decoder(e_out_dense, Htr_sparse, H_sparse, s_dense);
+        uint8_t ret = bfmax_decoder(e_out_dense, Htr_sparse, H_sparse, hw, syndrome_bits);
         count_2 = CPUCYCLES(test);
 
         /* compare error vectors */
