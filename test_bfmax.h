@@ -55,7 +55,7 @@ static INLINE int update_syndrome_and_upcs(
    IN  int hw)
 {
    int flip_block = flip / P;
-   int flip_bit = flip % P;
+   int flip_bit = flip - flip_block * P;
    __m256i vp = _mm256_set1_epi32((uint32_t)P);
    __m256i vpos = _mm256_set1_epi32((uint32_t)flip_bit);
    /* vectorize H_sparse */
@@ -83,7 +83,7 @@ static INLINE int update_syndrome_and_upcs(
          syndrome_bits[row] ^= 1;
          int delta = (syndrome_bits[row] == 0) ? -1 : 1;
          hw += delta;
-         if (hw==0) return hw;
+         if (hw == 0) return hw;
          up_sign[col_reg * I32_IN_YMM + i] = delta;
          /* save upc positions to update (faster than updating upcs directly) */
          __m256i vrow = _mm256_set1_epi32((uint32_t)row);
@@ -166,14 +166,17 @@ int bfmax_decoder(
    OUT DIGIT error[N0*NUM_DIGITS_GF2X_ELEMENT], 
    IN  POS Htr_sparse[N0][PAD32(V)], 
    IN  POS H_sparse[N0][PAD32(V)], 
-   IN  int hw,
-   IN  uint8_t syndrome_bits[P])
+   IN  DIGIT syndrome[NUM_DIGITS_GF2X_ELEMENT])
 {
+   /* expand each syndome bit to u8 */
+   uint8_t syndrome_bits[P];
+   dense_to_u8(syndrome_bits, syndrome, P);
    /* compute unsatisfied parity checks */
    ALIGNED uint8_t upc[PAD8(N0 * P)] = {0};
    compute_upcs(upc, Htr_sparse, syndrome_bits);
    /* decoding iterations */
    int iter = 0;
+   int hw = population_count(syndrome);
    do {
       POS col = argmax_u8(upc);
       int col_block = col / P;
