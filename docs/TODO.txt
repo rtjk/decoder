@@ -12,6 +12,7 @@
 - "preimage" initializaion from qcbits?
 - use correct padding instead of PAD32 and PAD8
 - __attribute__((noinline))
+- LUT for count leading zeroes
 ////////////////////////////////////////////////////////////////////////////////
 - "inline" always capitalized
 - no AVX-512

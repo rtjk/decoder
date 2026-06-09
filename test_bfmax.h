@@ -7,8 +7,9 @@
 // - population_count
 // - gf2x_toggle_coeff
 ////////////////////////////////////////////////////////////////////////////////
-#define N_REGS_H   (PAD32(V) / I32_IN_YMM)
-#define N_REGS_UPC (PAD8(N0 * P) / I8_IN_YMM)
+#define N_REGS_DENSE (PAD64(NUM_DIGITS_GF2X_ELEMENT) / I64_IN_YMM)
+#define N_REGS_H     (PAD32(V) / I32_IN_YMM)
+#define N_REGS_UPC   (PAD8(N0 * P) / I8_IN_YMM)
 ////////////////////////////////////////////////////////////////////////////////
 #define WORD_LEVEL_SHIFT word_level_shift_VT
 #define SLACK_SIZE (DIGIT_SIZE_b - (P % DIGIT_SIZE_b))
@@ -411,47 +412,73 @@ static INLINE int bs_argmax(SLICE_BUNDLE bs_upc[N0 * SLICES_OF_P])
    return circulant_block * P + j;
 }
 ////////////////////////////////////////////////////////////////////////////////
-static INLINE int bs_update_syndrome_and_upcs(
+static INLINE void bs_upc_inc_dec(
    OUT SLICE_BUNDLE bs_upc[N0 * SLICES_OF_P],
-   IN  CONST POS Htr_sparse[N0][PAD32(V)], 
    IN  DIGIT H_full_dense[N0][P][PAD64(NUM_DIGITS_GF2X_ELEMENT)],
-   IN  POS flip, 
-   OUT uint8_t syndrome_bits[P],
-   IN  int hw)
+   IN  uint8_t inc_dec_flag, // 0 for dec, 1 for inc
+   IN  POS positions[V],
+   IN  int count)
 {
-   int flip_block = flip / P;
-   int flip_bit = flip - flip_block * P;
-   __m256i vp = _mm256_set1_epi32((uint32_t)P);
-   __m256i vpos = _mm256_set1_epi32((uint32_t)flip_bit);
-   /* update syndrome and upcs */
-   for (int col_reg = 0; col_reg < N_REGS_H; col_reg++) {
-      /* get the column of H corresponding to the flipped bit */
-      uint32_t tmp[I32_IN_YMM] = {0};
-      __m256i htr = _mm256_loadu_si256((__m256i *)&Htr_sparse[flip_block][col_reg * I32_IN_YMM]);
-      __m256i sum = _mm256_add_epi32(htr, vpos);
-      __m256i sub = _mm256_sub_epi32(sum, vp);
-      __m256i res = _mm256_min_epu32(sum, sub);
-      _mm256_storeu_si256((__m256i *)tmp, res);
-      /* scan each idx in the column */
-      for (int i = 0; (i < I32_IN_YMM) && (col_reg * I32_IN_YMM + i < V); i++) {
-         /* update the syndrome */
-         POS row = tmp[i];
-         syndrome_bits[row] ^= 1;
-         int delta = (syndrome_bits[row] == 0) ? -1 : 1;
-         hw += delta;
-         /* update upcs */
-         for (int block = 0; block < N0; block++) {
-            for (int j = 0; j < SLICES_OF_P; j++) {
-               __m256i H_vec = _mm256_loadu_si256((__m256i *)&H_full_dense[block][row][j * 4]);
-               if(delta == 1) {
-                  bs_upc[block * SLICES_OF_P + j] = bs_increment(bs_upc[block * SLICES_OF_P + j], H_vec);
-               } else {
-                  bs_upc[block * SLICES_OF_P + j] = bs_decrement(bs_upc[block * SLICES_OF_P + j], H_vec);
-               }
+   for (int i = 0; i < count; i++) {
+      POS row = positions[i];
+      for (int block = 0; block < N0; block++) {
+         int block_offset = block * SLICES_OF_P;
+         for (int j = 0; j < SLICES_OF_P; j++) {
+            __m256i H_vec = _mm256_loadu_si256((__m256i *)&H_full_dense[block][row][j * 4]);
+            if (inc_dec_flag) {
+               bs_upc[block_offset + j] = bs_increment(bs_upc[block_offset + j], H_vec);
+            } else {
+               bs_upc[block_offset + j] = bs_decrement(bs_upc[block_offset + j], H_vec);
             }
          }
       }
    }
+}
+////////////////////////////////////////////////////////////////////////////////
+static INLINE int bs_update_syndrome_and_upcs(
+   OUT SLICE_BUNDLE bs_upc[N0 * SLICES_OF_P],
+   IN  CONST POS Htr_sparse[N0][PAD32(V)], 
+   IN  DIGIT Htr_dense[N0][NUM_DIGITS_GF2X_ELEMENT],
+   IN  DIGIT H_full_dense[N0][P][PAD64(NUM_DIGITS_GF2X_ELEMENT)],
+   IN  POS flip, 
+   OUT DIGIT syndrome[NUM_DIGITS_GF2X_ELEMENT],
+   IN  int hw)
+{
+   int flip_block = flip / P;
+   int flip_bit = flip - flip_block * P;
+   POS dec[V];
+   POS inc[V];
+   int dec_count = 0;
+   int inc_count = 0;
+   /* get the column of H corresponding to the flipped bit */
+   DIGIT Htr_col_dense[NUM_DIGITS_GF2X_ELEMENT] = {0};
+   gf2x_mod_mul_monom(Htr_col_dense, flip_bit, Htr_dense[flip_block]);
+   /* update the syndrome by XORing with the column */
+   for (int dig = 0; dig < NUM_DIGITS_GF2X_ELEMENT; dig++) {
+      DIGIT syn = syndrome[dig];
+      DIGIT col = Htr_col_dense[dig];
+      syndrome[dig] ^= col;
+      /* save positions for decrements (syndrome bit 1->0) */
+      DIGIT d = syn & col;
+      while (d) {
+         POS pos = __builtin_ctzll(d);
+         dec[dec_count] = (NUM_DIGITS_GF2X_ELEMENT*DIGIT_SIZE_b -1) - (dig * DIGIT_SIZE_b + (DIGIT_SIZE_b - 1 - pos));
+         dec_count++;
+         d &= d - 1;
+      }
+      /* save positions for increments (syndrome bit 0->1) */
+      d = ~syn & col;
+      while (d) {
+         POS pos = __builtin_ctzll(d);
+         inc[inc_count] = (NUM_DIGITS_GF2X_ELEMENT*DIGIT_SIZE_b -1) - (dig * DIGIT_SIZE_b + (DIGIT_SIZE_b - 1 - pos));
+         inc_count++;
+         d &= d - 1;
+      }
+   }
+   hw = population_count(syndrome);
+   /* update upcs */
+   bs_upc_inc_dec(bs_upc, H_full_dense, 0, dec, dec_count);
+   bs_upc_inc_dec(bs_upc, H_full_dense, 1, inc, inc_count);
    return hw;
 }
 ////////////////////////////////////////////////////////////////////////////////
@@ -459,17 +486,13 @@ int bfmax_decoder_full_dense(
    OUT DIGIT error[N0*NUM_DIGITS_GF2X_ELEMENT], 
    IN  POS Htr_sparse[N0][PAD32(V)], 
    IN  POS H_sparse[N0][PAD32(V)], 
+   IN  DIGIT Htr_dense[N0][NUM_DIGITS_GF2X_ELEMENT],
    IN  DIGIT H_full_dense[N0][P][PAD64(NUM_DIGITS_GF2X_ELEMENT)],
    IN  DIGIT syndrome[NUM_DIGITS_GF2X_ELEMENT])
 {
-   /* expand each syndome bit to u8 */
-   uint8_t syndrome_bits[P];
-   dense_to_u8(syndrome_bits, syndrome, P);
-
    /* compute unsatisfied parity checks */
    SLICE_BUNDLE bs_upc[N0 * SLICES_OF_P];
    bs_compute_upcs(bs_upc, H_sparse, syndrome);
-
    /* decoding iterations */
    int iter = 0;
    int hw = population_count(syndrome);
@@ -478,7 +501,7 @@ int bfmax_decoder_full_dense(
       int col_block = col / P;
       int col_bit = col % P;
       gf2x_toggle_coeff(error + col_block * NUM_DIGITS_GF2X_ELEMENT, col_bit);
-      hw = bs_update_syndrome_and_upcs(bs_upc, Htr_sparse, H_full_dense, col, syndrome_bits, hw);
+      hw = bs_update_syndrome_and_upcs(bs_upc, Htr_sparse, Htr_dense, H_full_dense, col, syndrome, hw);
       DEBUG_PRINT("i: %d \t hw(s): %d \n", iter, hw);
       iter++;
    } while ((iter < 1.5 * NUM_ERRORS_T) && (hw != 0));
