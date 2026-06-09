@@ -205,8 +205,7 @@ static INLINE SLICE_BUNDLE bs_increment(SLICE_BUNDLE a, SLICE b)
    SLICE_BUNDLE result;
    SLICE carry = _mm256_and_si256(a.slice[0], b);
    result.slice[0] = _mm256_xor_si256(a.slice[0], b);
-   for (int i = 1; i < BITS_FOR_V; i++)
-   {
+   for (int i = 1; i < BITS_FOR_V; i++) {
       SLICE ai = a.slice[i];
       result.slice[i] = _mm256_xor_si256(ai, carry);
       carry = _mm256_and_si256(ai, carry);
