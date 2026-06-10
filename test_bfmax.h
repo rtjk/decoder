@@ -49,7 +49,7 @@ static INLINE POS argmax_u8(uint8_t arr[PAD8(N0 * P)]) {
 static INLINE int update_syndrome_and_upcs(
    OUT uint8_t upc[PAD8(N0 * P)], 
    IN  POS Htr_sparse[N0][PAD32(V)], 
-   IN  __m256i v_H_row[N0][N_REGS_H],
+   IN  __m256i v_H_sparse[N0][N_REGS_H],
    IN  POS flip, 
    OUT uint8_t syndrome_bits[P],
    IN  int hw)
@@ -84,7 +84,7 @@ static INLINE int update_syndrome_and_upcs(
          __m256i vrow = _mm256_set1_epi32((uint32_t)row);
          for (int block = 0; block < N0; block++) {
             for (int row_reg = 0; row_reg < N_REGS_H; row_reg++) {
-               __m256i col = _mm256_add_epi32(v_H_row[block][row_reg], vrow);
+               __m256i col = _mm256_add_epi32(v_H_sparse[block][row_reg], vrow);
                __m256i sub = _mm256_sub_epi32(col, vp);
                __m256i res = _mm256_min_epu32(col, sub);
                up_pos[col_reg * I32_IN_YMM + i][block][row_reg] = res;
@@ -167,10 +167,10 @@ int bfmax_decoder(
    uint8_t syndrome_bits[P];
    dense_to_u8(syndrome_bits, syndrome, P);
    /* vectorize H_sparse */
-   __m256i v_H_row[N0][N_REGS_H];
+   __m256i v_H_sparse[N0][N_REGS_H];
    for (int block = 0; block < N0; block++) {
       for (int r = 0; r < N_REGS_H; r++) {
-         v_H_row[block][r] = _mm256_loadu_si256((__m256i *)&H_sparse[block][r * 8]);
+         v_H_sparse[block][r] = _mm256_loadu_si256((__m256i *)&H_sparse[block][r * 8]);
       }
    }
    /* compute unsatisfied parity checks */
@@ -184,7 +184,7 @@ int bfmax_decoder(
       int col_block = col / P;
       int col_bit = col % P;
       gf2x_toggle_coeff(error + col_block * NUM_DIGITS_GF2X_ELEMENT, col_bit);
-      hw = update_syndrome_and_upcs(upc, Htr_sparse, v_H_row, col, syndrome_bits, hw);
+      hw = update_syndrome_and_upcs(upc, Htr_sparse, v_H_sparse, col, syndrome_bits, hw);
       DEBUG_PRINT("i: %d \t hw(s): %d \n", iter, hw);
       iter++;
    } while ((iter < 1.5 * NUM_ERRORS_T) && (hw != 0));
