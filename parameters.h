@@ -9,7 +9,7 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define P               (10883)
+#define P               (9011)
 #define N0              (2)
 #define V               (71)
 #define NUM_ERRORS_T    (133)
@@ -25,7 +25,7 @@
 { 4391, 43}
 unsigned int synd_corrt_vec[][2]= {SYNDROME_TRESH_LOOKUP_TABLE};
 
-#define ITERATIONS_MAX 6
+#define ITERATIONS_MAX 5
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,6 +38,20 @@ unsigned int synd_corrt_vec[][2]= {SYNDROME_TRESH_LOOKUP_TABLE};
 
 ////////////////////////////////////////////////////////////////////////////////
 
+
+// new endianness
+// #define NE 1
+#define NE 0
+
+#if NE
+
+#define I32_IN_YMM            (256/32)
+#define PAD32(x)              (x)
+#define I8_IN_YMM             (256/8)
+#define PAD8(x)               (x)
+
+#else
+
 /* number of 32-bit integers that fit inside a YMM register */
 #define I32_IN_YMM            (256/32)
 /* round up the size of an array of 32-bit integers to fit inside YMM regs */
@@ -47,6 +61,8 @@ unsigned int synd_corrt_vec[][2]= {SYNDROME_TRESH_LOOKUP_TABLE};
 #define I8_IN_YMM             (256/8)
 /* round up the size of an array of 8-bit integers to fit inside YMM regs */
 #define PAD8(x)               (((x) + I8_IN_YMM - 1) & ~(I8_IN_YMM - 1))
+
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 

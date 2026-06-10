@@ -53,6 +53,21 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 
+/* reverse the order of an array of n words */
+void arr_reverse(uint64_t *arr, size_t n) {
+    size_t i = 0;
+    size_t j = n - 1;
+    while (i < j) {
+        uint64_t temp = arr[i];
+        arr[i] = arr[j];
+        arr[j] = temp;
+        i++;
+        j--;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 /* fill an array of n 32-bit words with random values modulo m */
 void u32_arr_rand_mod(uint32_t *arr, size_t n, size_t m) {
     for (size_t i = 0; i < n; i++) arr[i] = rand() % m;

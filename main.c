@@ -12,10 +12,11 @@
 #include "test_utils.h"     // functions to compute syndrome, transpose H, etc.
 #include "test_ref.h"       // reference decoding function
 #include "test_bfmax.h"     // optimized decoding function
+#include "test_opt.h"       // 
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define RUNS 10000
+#define RUNS 1000
 #define SEED 42
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -30,6 +31,8 @@ int main() {
     uint64_t sum = 0;
 
     uint8_t checksum = 0;
+
+    int failed = 0;
 
     for (int test = 0; test < TESTS + WARMUP; test++) {
 
@@ -58,20 +61,26 @@ int main() {
         /* compute syndrome */
         util_compute_syndrome(s_dense, Htr_dense, e_in_sparse);
 
+        if(NE) arr_reverse(s_dense, NUM_DIGITS_GF2X_ELEMENT);
+
         /* decode */
         count_1 = CPUCYCLES(test);
         // uint8_t ret = bf_decoder(e_out_dense, Htr_sparse, s_dense);
         uint8_t ret = bfmax_decoder(e_out_dense, Htr_sparse, H_sparse, s_dense);
+        // uint8_t ret = OPT_bf_decoder(e_out_dense, Htr_sparse, s_dense);
         count_2 = CPUCYCLES(test);
+
+        if(NE) {arr_reverse(e_out_dense, NUM_DIGITS_GF2X_ELEMENT); arr_reverse(e_out_dense+NUM_DIGITS_GF2X_ELEMENT, NUM_DIGITS_GF2X_ELEMENT);}
 
         /* compare error vectors */
         uint8_t cmp = memcmp(e_out_dense, e_in_dense, N0*NUM_DIGITS_GF2X_ELEMENT*sizeof(uint64_t));
-        if (cmp != 0) ERROR("e_in != e_out");
+        // if (cmp != 0) ERROR("e_in != e_out");
+        if (cmp != 0) failed++;
 
         sum += count_2 - count_1;
         checksum += ret;
     }
-    printf("[%d] %lu\n", checksum % 100, sum / RUNS);
+    printf("[%d](f:%d r:%d dfr:%.6lf) %lu\n", checksum % 100, failed, RUNS, (double)failed/RUNS, sum / RUNS);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
