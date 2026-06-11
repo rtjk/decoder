@@ -6,7 +6,7 @@
 #ifdef BENCH
 #include <cpucycles.h>
 #define TESTS RUNS
-#define WARMUP 1000
+#define WARMUP 0
 #define CPUCYCLES(test) ((test) >= WARMUP ? cpucycles() : 0)
 /* profiling and testing */
 #else

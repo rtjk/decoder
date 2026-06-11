@@ -82,11 +82,12 @@ int main() {
             // printf("F");
         }
         // printf("\n");
-
-        sum += count_2 - count_1;
+        else{
+            sum += count_2 - count_1;
+        }
         checksum += ret;
     }
-    printf("[%d](f:%d r:%d dfr:%.6lf) %lu\n", checksum % 100, failed, RUNS, (double)failed/RUNS, sum / RUNS);
+    printf("[%d](f:%d r:%d dfr:%.6lf) %lu\n", checksum % 100, failed, RUNS, (double)failed/RUNS, sum / (RUNS - failed));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
