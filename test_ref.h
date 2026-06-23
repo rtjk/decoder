@@ -3,24 +3,6 @@
 #include "parameters.h"
 #include "test_utils.h"
 ////////////////////////////////////////////////////////////////////////////////
-// from test_utils:
-// - population_count
-// - gf2x_toggle_coeff
-////////////////////////////////////////////////////////////////////////////////
-void gf2x_copy(DIGIT dest[], CONST DIGIT in[])
-{
-   for (int i = NUM_DIGITS_GF2X_ELEMENT-1; i >= 0; i--)
-      dest[i] = in[i];
-} // end gf2x_copy
-////////////////////////////////////////////////////////////////////////////////
-DIGIT gf2x_get_coeff(CONST DIGIT poly[], CONST unsigned int exponent)
-{
-   unsigned int straightIdx = (NUM_DIGITS_GF2X_ELEMENT*DIGIT_SIZE_b -1) - exponent;
-   unsigned int digitIdx = straightIdx / DIGIT_SIZE_b;
-   unsigned int inDigitIdx = straightIdx % DIGIT_SIZE_b;
-   return (poly[digitIdx] >> (DIGIT_SIZE_b-1-inDigitIdx)) & ((DIGIT) 1) ;
-}
-////////////////////////////////////////////////////////////////////////////////
 int bf_decoder(DIGIT out[], // N0 polynomials
               CONST POS HtrPosOnes[N0][PAD32(V)],
               DIGIT privateSyndrome[]  //  1 polynomial

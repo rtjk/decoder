@@ -3,10 +3,6 @@
 #include "parameters.h"
 #include "test_utils.h"
 ////////////////////////////////////////////////////////////////////////////////
-// from test_utils:
-// - population_count
-// - gf2x_toggle_coeff
-////////////////////////////////////////////////////////////////////////////////
 #define N_REGS_H   (PAD32(V) / I32_IN_YMM)
 #define N_REGS_UPC (PAD8(N0 * P) / I8_IN_YMM)
 ////////////////////////////////////////////////////////////////////////////////
@@ -109,16 +105,6 @@ static INLINE int update_syndrome_and_upcs(
    return hw;
 }
 ////////////////////////////////////////////////////////////////////////////////
-static INLINE DIGIT get_coeff(
-   IN DIGIT poly[],
-   IN unsigned int exponent)
-{
-   unsigned int straightIdx = (NUM_DIGITS_GF2X_ELEMENT*DIGIT_SIZE_b -1) - exponent;
-   unsigned int digitIdx = straightIdx / DIGIT_SIZE_b;
-   unsigned int inDigitIdx = straightIdx % DIGIT_SIZE_b;
-   return (poly[digitIdx] >> (DIGIT_SIZE_b-1-inDigitIdx)) & ((DIGIT) 1) ;
-}
-////////////////////////////////////////////////////////////////////////////////
 /* for r in rows
  *   for c in columns
  *     upc[c] += s[r] & H[r][c]
@@ -153,7 +139,7 @@ static INLINE void dense_to_u8(
    IN  int len)
 {
    for (int i = 0; i < len; i++) {
-      u8[i] = get_coeff(dense, i);
+      u8[i] = gf2x_get_coeff(dense, i);
    }
 }
 ////////////////////////////////////////////////////////////////////////////////

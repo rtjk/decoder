@@ -2,14 +2,25 @@
 #include "helpers.h"
 #include "parameters.h"
 ////////////////////////////////////////////////////////////////////////////////
+static INLINE void gf2x_copy(DIGIT dest[], CONST DIGIT in[])
+{
+   for (int i = NUM_DIGITS_GF2X_ELEMENT-1; i >= 0; i--)
+      dest[i] = in[i];
+} // end gf2x_copy
+////////////////////////////////////////////////////////////////////////////////
+static INLINE DIGIT gf2x_get_coeff(CONST DIGIT poly[], CONST unsigned int exponent)
+{
+   unsigned int digitIdx = exponent / DIGIT_SIZE_b;
+   unsigned int inDigitIdx = exponent % DIGIT_SIZE_b;
+   return (poly[digitIdx] >> inDigitIdx) & ((DIGIT) 1);
+}
+////////////////////////////////////////////////////////////////////////////////
 static INLINE void gf2x_toggle_coeff(DIGIT poly[], CONST unsigned int exponent)
 {
-   int straightIdx = (NUM_DIGITS_GF2X_ELEMENT*DIGIT_SIZE_b -1) - exponent;
-   int digitIdx = straightIdx / DIGIT_SIZE_b;
-   unsigned int inDigitIdx = straightIdx % DIGIT_SIZE_b;
-
+   int digitIdx = exponent / DIGIT_SIZE_b;
+   unsigned int inDigitIdx = exponent % DIGIT_SIZE_b;
    /* clear given coefficient */
-   DIGIT mask = ( ((DIGIT) 1) << (DIGIT_SIZE_b-1-inDigitIdx));
+   DIGIT mask = ( ((DIGIT) 1) << inDigitIdx);
    poly[digitIdx] = poly[digitIdx] ^ mask;
 }
 ////////////////////////////////////////////////////////////////////////////////
@@ -22,18 +33,14 @@ static INLINE int population_count(DIGIT upc[])
    return ret;
 } // end population_count
 ////////////////////////////////////////////////////////////////////////////////
-void gf2x_set_coeff(DIGIT poly[], CONST unsigned int exponent, DIGIT value)
+static INLINE void gf2x_set_coeff(DIGIT poly[], CONST unsigned int exponent, DIGIT value)
 {
-   int straightIdx = (NUM_DIGITS_GF2X_ELEMENT*DIGIT_SIZE_b -1) - exponent;
-   int digitIdx = straightIdx / DIGIT_SIZE_b;
-
-   unsigned int inDigitIdx = straightIdx % DIGIT_SIZE_b;
-
+   int digitIdx = exponent / DIGIT_SIZE_b;
+   unsigned int inDigitIdx = exponent % DIGIT_SIZE_b;
    /* clear given coefficient */
-   DIGIT mask = ~( ((DIGIT) 1) << (DIGIT_SIZE_b-1-inDigitIdx));
+   DIGIT mask = ~( ((DIGIT) 1) << inDigitIdx);
    poly[digitIdx] = poly[digitIdx] & mask;
-   poly[digitIdx] = poly[digitIdx] | (( value & ((DIGIT) 1)) <<
-                                      (DIGIT_SIZE_b-1-inDigitIdx));
+   poly[digitIdx] = poly[digitIdx] | (( value & ((DIGIT) 1)) << inDigitIdx);
 }
 ////////////////////////////////////////////////////////////////////////////////
 static INLINE void gf2x_mod_densify_VT(DIGIT dense[NUM_DIGITS_GF2X_ELEMENT],
@@ -45,7 +52,7 @@ static INLINE void gf2x_mod_densify_VT(DIGIT dense[NUM_DIGITS_GF2X_ELEMENT],
    }
 }
 ////////////////////////////////////////////////////////////////////////////////
-void transposeHPosOnes(POS HtrPosOnes[N0][PAD32(V)], /* output*/
+static INLINE void transposeHPosOnes(POS HtrPosOnes[N0][PAD32(V)], /* output*/
                        POS CONST HPosOnes[N0][PAD32(V)]
                       )
 {
@@ -66,7 +73,7 @@ void util_densify_error(DIGIT dense[N0*NUM_DIGITS_GF2X_ELEMENT],
    }
 }
 ////////////////////////////////////////////////////////////////////////////////
-void gf2x_add(CONST int nr, DIGIT Res[],
+static INLINE void gf2x_add(CONST int nr, DIGIT Res[],
                             CONST int na, CONST DIGIT A[],
                             CONST int nb, CONST DIGIT B[])
 {
@@ -74,45 +81,42 @@ void gf2x_add(CONST int nr, DIGIT Res[],
       Res[i] = A[i] ^ B[i];
 } // end gf2x_add
 ////////////////////////////////////////////////////////////////////////////////
-void gf2x_mod_add(DIGIT Res[], CONST DIGIT A[], CONST DIGIT B[])
+static INLINE void gf2x_mod_add(DIGIT Res[], CONST DIGIT A[], CONST DIGIT B[])
 {
    gf2x_add(NUM_DIGITS_GF2X_ELEMENT, Res,
             NUM_DIGITS_GF2X_ELEMENT, A,
             NUM_DIGITS_GF2X_ELEMENT, B);
 } // end gf2x_mod_add
 ////////////////////////////////////////////////////////////////////////////////
-void right_bit_shift_n(CONST int length, DIGIT in[], CONST int amount)
+static INLINE void right_bit_shift_n(CONST int length, DIGIT in[], CONST int amount)
 {
    if ( amount == 0 ) return;
-   int j;
-   DIGIT mask;
-   mask = ((DIGIT)0x01 << amount) - 1;
-   for (j = length-1; j > 0 ; j--) {
+   DIGIT mask = ((DIGIT)0x01 << amount) - 1;
+   for (int j = 0; j < length - 1 ; j++) {
       in[j] >>= amount;
-      in[j] |=  (in[j-1] & mask) << (DIGIT_SIZE_b - amount);
+      in[j] |=  (in[j+1] & mask) << (DIGIT_SIZE_b - amount);
    }
-   in[j] >>= amount;
+   in[length - 1] >>= amount;
 } // end right_bit_shift_n
 ////////////////////////////////////////////////////////////////////////////////
-void gf2x_mod(DIGIT out[],
+static INLINE void gf2x_mod(DIGIT out[],
               CONST int nin, CONST DIGIT in[])
 {
    DIGIT aux[NUM_DIGITS_GF2X_ELEMENT+1];
-   memcpy(aux, in, (NUM_DIGITS_GF2X_ELEMENT+1)*DIGIT_SIZE_B);
+   memcpy(aux, in+NUM_DIGITS_GF2X_ELEMENT-1, (NUM_DIGITS_GF2X_ELEMENT+1)*DIGIT_SIZE_B);
 #if MSb_POSITION_IN_MSB_DIGIT_OF_MODULUS != 0
    right_bit_shift_n(NUM_DIGITS_GF2X_ELEMENT+1, aux,
                      MSb_POSITION_IN_MSB_DIGIT_OF_MODULUS);
 #endif
    gf2x_add(NUM_DIGITS_GF2X_ELEMENT,out,
-            NUM_DIGITS_GF2X_ELEMENT,aux+1,
-            NUM_DIGITS_GF2X_ELEMENT,in+NUM_DIGITS_GF2X_ELEMENT);
+            NUM_DIGITS_GF2X_ELEMENT,aux,
+            NUM_DIGITS_GF2X_ELEMENT,in);
 #if MSb_POSITION_IN_MSB_DIGIT_OF_MODULUS != 0
-   out[0] &=  ((DIGIT)1 << MSb_POSITION_IN_MSB_DIGIT_OF_MODULUS) - 1 ;
+   out[NUM_DIGITS_GF2X_ELEMENT-1] &=  ((DIGIT)1 << MSb_POSITION_IN_MSB_DIGIT_OF_MODULUS) - 1 ;
 #endif
-
 } // end gf2x_mod
 ////////////////////////////////////////////////////////////////////////////////
-void gf2x_fmac(DIGIT Res[],
+static INLINE void gf2x_fmac(DIGIT Res[],
                CONST DIGIT operand[],
                CONST unsigned int shiftAmt)
 {
@@ -120,32 +124,28 @@ void gf2x_fmac(DIGIT Res[],
    unsigned int inDigitShift= shiftAmt % DIGIT_SIZE_b;
    DIGIT tmp,prevLo=0;
    int i;
-   SIGNED_DIGIT inDigitShiftMask = ((SIGNED_DIGIT) (inDigitShift>0)  <<
-                                    (DIGIT_SIZE_b-1)) >> (DIGIT_SIZE_b-1);
-   for(i = NUM_DIGITS_GF2X_ELEMENT-1; i>=0 ; i--) {
+   SIGNED_DIGIT inDigitShiftMask = ((SIGNED_DIGIT) (inDigitShift>0) << (DIGIT_SIZE_b-1)) >> (DIGIT_SIZE_b-1);
+   for(i = 0; i < NUM_DIGITS_GF2X_ELEMENT; i++) {
       tmp = operand[i];
-      Res[NUM_DIGITS_GF2X_ELEMENT+i-digitShift] ^= prevLo | (tmp << inDigitShift);
+      Res[i + digitShift] ^= prevLo | (tmp << inDigitShift);
       prevLo = (tmp >> (DIGIT_SIZE_b - inDigitShift)) & inDigitShiftMask;
    }
-   Res[NUM_DIGITS_GF2X_ELEMENT+i-digitShift] ^= prevLo;
+   Res[i + digitShift] ^= prevLo;
 }
 ////////////////////////////////////////////////////////////////////////////////
-void gf2x_mod_mul_dense_to_sparse(DIGIT Res[],
+static INLINE void gf2x_mod_mul_dense_to_sparse(DIGIT Res[],
                                   CONST DIGIT dense[],
                                   CONST POS sparse[],
                                   unsigned int nPos)
 {
    DIGIT resDouble[2*NUM_DIGITS_GF2X_ELEMENT] = {0};
-
    for (unsigned int i = 0; i < nPos; i++) {
       if (sparse[i] != INVALID_POS_VALUE) {
-         gf2x_fmac(resDouble, dense,sparse[i]);
+         gf2x_fmac(resDouble, dense, sparse[i]);
       }
    }
-
    gf2x_mod(Res, 2*NUM_DIGITS_GF2X_ELEMENT, resDouble);
-
-} // end gf2x_mod_mul
+} // end gf2x_mod_mul_dense_to_sparse
 ////////////////////////////////////////////////////////////////////////////////
 /* for r in rows
  *   for c in columns
