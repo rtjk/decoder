@@ -9,7 +9,12 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define P               (10883)
+// #define P               (10883)
+// #define P               (8731)
+#ifndef P
+#define P (0)
+#endif
+
 #define N0              (2)
 #define V               (71)
 #define NUM_ERRORS_T    (133)

@@ -7,12 +7,12 @@
 #include <cpucycles.h>
 #define TESTS RUNS
 #define WARMUP 1000
-#define CPUCYCLES(test) ((test) >= WARMUP ? cpucycles() : 0)
+#define CPUCYCLES() cpucycles()
 /* profiling and testing */
 #else
 #define TESTS 1
 #define WARMUP 0
-#define CPUCYCLES(test) 0
+#define CPUCYCLES() 0
 #endif
 
 #ifdef SKIP_INLINE

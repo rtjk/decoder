@@ -25,11 +25,17 @@ int main() {
 
     srand(SEED);
 
+    /* clock cycles */
     uint64_t count_1;
     uint64_t count_2;
     uint64_t sum = 0;
+    double avg = 0;
 
-    uint8_t checksum = 0;
+    /* decoding failure rate */
+    uint64_t checksum = 0;
+    uint64_t failures = 0;
+    uint64_t successes = 0;
+    double rate = 0;
 
     for (int test = 0; test < TESTS + WARMUP; test++) {
 
@@ -59,19 +65,37 @@ int main() {
         util_compute_syndrome(s_dense, Htr_dense, e_in_sparse);
 
         /* decode */
-        count_1 = CPUCYCLES(test);
+        count_1 = CPUCYCLES();
         // uint8_t ret = bf_decoder(e_out_dense, Htr_sparse, s_dense);
         uint8_t ret = bfmax_decoder(e_out_dense, Htr_sparse, H_sparse, s_dense);
-        count_2 = CPUCYCLES(test);
+        count_2 = CPUCYCLES();
 
         /* compare error vectors */
         uint8_t cmp = memcmp(e_out_dense, e_in_dense, N0*NUM_DIGITS_GF2X_ELEMENT*sizeof(uint64_t));
-        if (cmp != 0) ERROR("e_in != e_out");
+        // if (cmp != 0) ERROR("e_in != e_out");
 
-        sum += count_2 - count_1;
+        /* update cycles and dfr */
+        if (test >= WARMUP) {
+            if (cmp == 0) {
+                successes++;
+                sum += count_2 - count_1;
+            } else {
+                failures++;
+            }
+        }
+
         checksum += ret;
     }
-    printf("[%d] %lu\n", checksum % 100, sum / RUNS);
+
+    assert(successes + failures == TESTS);
+    rate = (double)failures / TESTS;
+    avg = successes ? (double)sum / successes : 0.0;
+
+    // printf(">> checksum:\t %lu\n", checksum);
+    // printf(">> failures:\t %lu/%lu\n", failures, TESTS);
+    // printf(">> rate:\t %.9f (%.2f%%)\n", rate, rate * 100.0);
+    // printf(">> cycles:\t %.2f\n", avg);
+    printf("%d, %.9f, %.2f\n", P, rate, avg);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
