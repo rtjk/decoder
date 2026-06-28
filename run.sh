@@ -20,14 +20,14 @@ TESTS_CC=10000
 
 ################################################################################
 
-echo ">>>> compiling (serial)"
+echo ">>>> compiling (parallel)"
 
-i=0
 while IFS= read -r prime || [ -n "$prime" ]; do
-    i=$((i + 1))
-    echo -ne "$i/$NPRIMES\r"
-    gcc -o "$OUTPUT/P-$prime.out" main.c -march=native -O3 -lcpucycles -lm -DP="$prime"
+    {
+        gcc -o "$OUTPUT/P-$prime.out" main.c -march=native -O3 -lcpucycles -lm -DP="$prime"
+    } &
 done < "$PRIMES"
+wait
 
 ################################################################################
 
@@ -54,8 +54,8 @@ find "$OUTPUT" -maxdepth 1 -type f -executable | \
     "taskset -c \$(( ({%} - 1) % $CORES )) {}" $BENCH_DFR $TESTS_DFR >> "$OUTPUT/dfr.csv"
 sort -t, -k2,2n "$OUTPUT/dfr.csv" -o "$OUTPUT/dfr.csv"
 
-find "$OUTPUT" -maxdepth 1 -type f -executable -delete
-
 ################################################################################
+
+find "$OUTPUT" -maxdepth 1 -type f -executable -delete
 
 echo ">>>> done"
