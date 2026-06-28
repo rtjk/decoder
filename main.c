@@ -4,6 +4,7 @@
 #include <immintrin.h>
 #include <stdalign.h>
 #include <assert.h>
+#include <cpucycles.h>
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -12,26 +13,47 @@
 #include "test_utils.h"     // functions to compute syndrome, transpose H, etc.
 #include "test_ref.h"       // reference decoding function
 #include "test_bfmax.h"     // optimized decoding function
+#include "test_opt.h"       //
+#include "stats.h"          //
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define RUNS 10000
+// #define RUNS 100000
 #define SEED 42
 
+#define BENCH_DFR (0)
+#define BENCH_CC  (1)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 
-int main() {
+int main(int argc, char *argv[]) {
+
+    /* argument parsing */
+    if (argc < 3) {
+        fprintf(stderr, "Usage: %s <parameter> <runs>\n", argv[0]);
+        return 1;
+    }
+    const int mode = atoi(argv[1]);
+    const int tests = atoi(argv[2]);
 
     srand(SEED);
 
+    stats_t stats = {0};
+
+    /* clock cycles */
     uint64_t count_1;
     uint64_t count_2;
     uint64_t sum = 0;
+    double avg = 0;
 
-    uint8_t checksum = 0;
+    /* decoding failure rate */
+    uint64_t checksum = 0;
+    uint64_t failures = 0;
+    uint64_t successes = 0;
+    double dfr = 0;
 
-    for (int test = 0; test < TESTS + WARMUP; test++) {
+    for (int test = 0; test < tests; test++) {
 
         uint64_t s_dense[NUM_DIGITS_GF2X_ELEMENT] = {0};        // syndrome (dense)
         uint64_t e_out_dense[N0*NUM_DIGITS_GF2X_ELEMENT] = {0}; // output error vector (dense)
@@ -59,28 +81,40 @@ int main() {
         util_compute_syndrome(s_dense, Htr_dense, e_in_sparse);
 
         /* decode */
-        count_1 = CPUCYCLES(test);
+        count_1 = cpucycles();
         // uint8_t ret = bf_decoder(e_out_dense, Htr_sparse, s_dense);
         uint8_t ret = bfmax_decoder(e_out_dense, Htr_sparse, H_sparse, s_dense);
-        count_2 = CPUCYCLES(test);
+        // uint8_t ret = OPT_bf_decoder(e_out_dense, Htr_sparse, s_dense);
+        count_2 = cpucycles();
 
         /* compare error vectors */
         uint8_t cmp = memcmp(e_out_dense, e_in_dense, N0*NUM_DIGITS_GF2X_ELEMENT*sizeof(uint64_t));
-        if (cmp != 0) ERROR("e_in != e_out");
+        if (DEBUG && cmp != 0) ERROR("e_in != e_out");
 
-        sum += count_2 - count_1;
-        checksum += ret;
+        /* update cycles and dfr */
+        if (cmp == 0) {
+            successes++;
+            stats_update(&stats, (double)(count_2 - count_1));
+        } else {
+            failures++;
+        }
     }
-    printf("[%d] %lu\n", checksum % 100, sum / RUNS);
+
+    assert(successes + failures == tests);
+    assert(stats.n == successes);
+    dfr = (double)failures / tests;
+
+    // mode, P, tests, failures, dfr
+    if(mode == BENCH_DFR) printf("dfr, %d, %d, %d, %.9f\n", P, tests, failures, dfr);
+    // mode, P, tests, failures, cc_stddev, cc_mean
+    if(mode == BENCH_CC)  printf("cc, %d, %d, %d, %.2f, %.2f\n", P, tests, failures, stats_stddev(&stats), stats_mean(&stats));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 /*
-#### benchmark
-rm -f main; gcc -o main main.c -march=native -O3 -lcpucycles -DBENCH=1
-taskset --cpu-list 0 ./main
-#### test
-rm -f main; gcc -o main main.c -march=native -O2 -g3 -fsanitize=address -Wall -pedantic -Wuninitialized -Wno-unused-function -Wno-unused-variable -DDEBUG=1
-taskset --cpu-list 0 ./main
+
+rm -f main.out; gcc -o main.out main.c -march=native -O3 -lcpucycles -lm -DP=10883
+taskset --cpu-list 0 ./main.out 1 10000
+
 */

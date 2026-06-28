@@ -9,7 +9,12 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define P               (10883)
+// #define P               (10883)
+// #define P               (8731)
+#ifndef P
+#error ">> P undefined"
+#endif
+
 #define N0              (2)
 #define V               (71)
 #define NUM_ERRORS_T    (133)
@@ -25,7 +30,7 @@
 { 4391, 43}
 unsigned int synd_corrt_vec[][2]= {SYNDROME_TRESH_LOOKUP_TABLE};
 
-#define ITERATIONS_MAX 6
+#define ITERATIONS_MAX 5
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,13 +45,27 @@ unsigned int synd_corrt_vec[][2]= {SYNDROME_TRESH_LOOKUP_TABLE};
 
 /* number of 32-bit integers that fit inside a YMM register */
 #define I32_IN_YMM            (256/32)
-/* round up the size of an array of 32-bit integers to fit inside YMM regs */
-#define PAD32(x)              (((x) + I32_IN_YMM - 1) & ~(I32_IN_YMM - 1))
-
 /* number of 8-bit integers that fit inside a YMM register */
 #define I8_IN_YMM             (256/8)
+
+////////////////////////////////////////////////////////////////////////////////
+
+// #define PAD_H 1
+#define PAD_H 0
+
+#if PAD_H
+
+#define PAD32(x)              (x)
+#define PAD8(x)               (x)
+
+#else
+
+/* round up the size of an array of 32-bit integers to fit inside YMM regs */
+#define PAD32(x)              (((x) + I32_IN_YMM - 1) & ~(I32_IN_YMM - 1))
 /* round up the size of an array of 8-bit integers to fit inside YMM regs */
 #define PAD8(x)               (((x) + I8_IN_YMM - 1) & ~(I8_IN_YMM - 1))
+
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 

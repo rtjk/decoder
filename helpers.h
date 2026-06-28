@@ -2,19 +2,6 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 
-/* benchmarking */
-#ifdef BENCH
-#include <cpucycles.h>
-#define TESTS RUNS
-#define WARMUP 1000
-#define CPUCYCLES(test) ((test) >= WARMUP ? cpucycles() : 0)
-/* profiling and testing */
-#else
-#define TESTS 1
-#define WARMUP 0
-#define CPUCYCLES(test) 0
-#endif
-
 #ifdef SKIP_INLINE
 #define INLINE
 #else
@@ -24,7 +11,11 @@
 #define RESTRICT
 #define CONST
 
-#ifdef DEBUG
+#ifndef DEBUG
+#define DEBUG 0
+#endif
+
+#if DEBUG
 #define DEBUG_PRINT(...)                            \
     do {                                            \
         printf("\033[0;33m");                       \
