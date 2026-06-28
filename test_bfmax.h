@@ -173,7 +173,7 @@ int bfmax_decoder(
       hw = update_syndrome_and_upcs(upc, Htr_sparse, v_H_sparse, col, syndrome_bits, hw);
       DEBUG_PRINT("i: %d \t hw(s): %d \n", iter, hw);
       iter++;
-   } while ((iter < 1.5 * NUM_ERRORS_T) && (hw != 0));
+   } while ((iter < ITER_MAX_BFMAX) && (hw != 0));
    return 1;
 }
 ////////////////////////////////////////////////////////////////////////////////

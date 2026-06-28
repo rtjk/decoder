@@ -30,7 +30,8 @@
 { 4391, 43}
 unsigned int synd_corrt_vec[][2]= {SYNDROME_TRESH_LOOKUP_TABLE};
 
-#define ITERATIONS_MAX 5
+#define ITER_MAX_OOP        (5)
+#define ITER_MAX_BFMAX      (1.5 * NUM_ERRORS_T)
 
 ////////////////////////////////////////////////////////////////////////////////
 

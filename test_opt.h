@@ -379,11 +379,11 @@ int OPT_bf_decoder(DIGIT error[N0*NUM_DIGITS_GF2X_ELEMENT],
                    CONST DIGIT privateSyndrome[])
 {
     DEBUG_PRINT("i: F \t hw(s): %d \n", population_count(privateSyndrome));
-   int thresholds[ITERATIONS_MAX];
+   int thresholds[ITER_MAX_OOP];
    thresholds[0] = TH0;
    thresholds[1] = TH1;
    thresholds[2] = TH2;
-   for(int i=3; i<ITERATIONS_MAX; i++){
+   for(int i=3; i<ITER_MAX_OOP; i++){
       thresholds[i] = (V+1)/2;
    }
    alignas(32) DIGIT estimate[N0 * NUM_SLICES_GF2X_ELEMENT * (NUM_BITS_IN_BITSLICED_OP / DIGIT_SIZE_b)] = {0};
@@ -395,7 +395,7 @@ int OPT_bf_decoder(DIGIT error[N0*NUM_DIGITS_GF2X_ELEMENT],
     //                                  H_sparse[N0 - 1],
     //                                  V);
     OPT_gf2x_copy(currSyndrome, privateSyndrome);
-    for (int iteration = 0; iteration < ITERATIONS_MAX; iteration++) {
+    for (int iteration = 0; iteration < ITER_MAX_OOP; iteration++) {
         /* Fixed threshold per iteration */
         OPT_bs_operand_t sliced_threshold;
         sliced_threshold = OPT_slice_constant((uint32_t)(-thresholds[iteration]));

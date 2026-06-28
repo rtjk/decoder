@@ -70,7 +70,7 @@ int bf_decoder(DIGIT out[], // N0 polynomials
 
       DEBUG_PRINT("i: %d \t hw(s): %d \t UPCs: %d\n", iteration, syndrome_wt, check);
 
-   } while (iteration < ITERATIONS_MAX && check < NUM_DIGITS_GF2X_ELEMENT);
+   } while (iteration < ITER_MAX_OOP && check < NUM_DIGITS_GF2X_ELEMENT);
 
    int hws = population_count(privateSyndrome);
    DEBUG_PRINT("i: L \t hw(s): %d \t UPCs: %d\n", hws, check);
