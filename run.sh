@@ -4,7 +4,7 @@
 set -e
 
 # inputs are in a text file, one per line
-PRIMES="docs/primes_short.txt"
+PRIMES="docs/primes.txt"
 NPRIMES=$(wc -l < "$PRIMES")
 
 # output directory
@@ -49,10 +49,10 @@ FREE_CORES=1
 TOTAL_CORES=$(nproc)
 CORES=$((TOTAL_CORES - FREE_CORES))
 
-find "$OUTPUT" -maxdepth 1 -type f -executable | \
-    parallel -j "$CORES" --joblog $OUTPUT/log.txt \
-    "taskset -c \$(( ({%} - 1) % $CORES )) {}" $BENCH_DFR $TESTS_DFR >> "$OUTPUT/dfr.csv"
-sort -t, -k2,2n "$OUTPUT/dfr.csv" -o "$OUTPUT/dfr.csv"
+#find "$OUTPUT" -maxdepth 1 -type f -executable | \
+#    parallel -j "$CORES" --joblog $OUTPUT/log.txt \
+#    "taskset -c \$(( ({%} - 1) % $CORES )) {}" $BENCH_DFR $TESTS_DFR >> "$OUTPUT/dfr.csv"
+#sort -t, -k2,2n "$OUTPUT/dfr.csv" -o "$OUTPUT/dfr.csv"
 
 ################################################################################
 

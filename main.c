@@ -73,6 +73,16 @@ int main(int argc, char *argv[]) {
         for(int block = 0; block < N0; block++) {
             gf2x_mod_densify_VT(Htr_dense[block], Htr_sparse[block], V);
         }
+        ////////
+        // ALIGNED uint32_t H_sparse_nopad[N0][V] = {0};
+        ALIGNED uint32_t Htr_sparse_nopad[N0][V] = {0};
+        for(int block = 0; block < N0; block++) {
+            for(int i = 0; i < V; i++) {
+                // H_sparse_nopad[block][i] = H_sparse[block][i];
+                Htr_sparse_nopad[block][i] = Htr_sparse[block][i];
+            }
+        }
+        ////////
         /* sample error vector */
         u32_arr_rand_mod_unique(e_in_sparse, NUM_ERRORS_T, N0*P);
         util_densify_error(e_in_dense, e_in_sparse);
@@ -81,10 +91,10 @@ int main(int argc, char *argv[]) {
 
         /* decode */
         count_1 = cpucycles();
-        // uint8_t ret = bf_decoder(e_out_dense, Htr_sparse, s_dense);
         // uint8_t ret = bfmax_decoder(e_out_dense, Htr_sparse, H_sparse, s_dense);
-        uint8_t ret = hybrid_decoder(e_out_dense, Htr_sparse, H_sparse, s_dense);
-        // uint8_t ret = OPT_bf_decoder(e_out_dense, Htr_sparse, s_dense);
+        // uint8_t ret = hybrid_decoder(e_out_dense, Htr_sparse, H_sparse, s_dense);
+        uint8_t ret = hybrid_decoder_2(e_out_dense, Htr_sparse, H_sparse, Htr_sparse_nopad, s_dense, 5);
+        // uint8_t ret = OPT_bf_decoder(e_out_dense, Htr_sparse_nopad, s_dense);
         count_2 = cpucycles();
 
         /* compare error vectors */

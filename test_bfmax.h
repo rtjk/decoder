@@ -2,16 +2,10 @@
 #include "helpers.h"
 #include "parameters.h"
 #include "test_utils.h"
+#include "test_opt.h"
 ////////////////////////////////////////////////////////////////////////////////
 #define N_REGS_H   (PAD32(V) / I32_IN_YMM)
 #define N_REGS_UPC (PAD8(N0 * P) / I8_IN_YMM)
-////////////////////////////////////////////////////////////////////////////////
-#define WORD_LEVEL_SHIFT word_level_shift_VT
-#define SLACK_SIZE (DIGIT_SIZE_b-(P%DIGIT_SIZE_b))
-#define SLACK_CLEAR_MASK ( ((DIGIT) 0 - 1) >> (DIGIT_SIZE_b-(P%DIGIT_SIZE_b)))
-#define SLACK_EXTRACT(digit_to_extract)  (digit_to_extract >> (P%DIGIT_SIZE_b) )
-#define LO_SHIFT_AMT_BITS (BITS_TO_REPRESENT(DIGIT_SIZE_b-1))
-#define HI_SHIFT_AMT_BITS (BITS_TO_REPRESENT(P) - LO_SHIFT_AMT_BITS)
 ////////////////////////////////////////////////////////////////////////////////
 static INLINE POS argmax_u8(uint8_t arr[PAD8(N0 * P)]) {
    /* find max */
@@ -143,6 +137,18 @@ static INLINE void dense_to_u8(
    }
 }
 ////////////////////////////////////////////////////////////////////////////////
+static INLINE void u8_to_dense(
+   OUT DIGIT dense[],
+   IN  uint8_t u8[],
+   IN  int len)
+{
+   for (int i = 0; i < len; i++) {
+      if (u8[i]) {
+         gf2x_toggle_coeff(dense, i);
+      }
+   }
+}
+////////////////////////////////////////////////////////////////////////////////
 int bfmax_decoder(
    OUT DIGIT error[N0*NUM_DIGITS_GF2X_ELEMENT], 
    IN  POS Htr_sparse[N0][PAD32(V)], 
@@ -209,6 +215,8 @@ int hybrid_decoder(
       iter++;
    } while ((iter < ITER_MAX_HYBRID) && (hw != 0));
    ////////
+   u8_to_dense(syndrome, syndrome_bits, P);
+   
    int chosen_th = (V+1)/2;
    for (int i = 0; i < N0 * P; i++) {
       if (upc[i] >= chosen_th) {
@@ -217,6 +225,49 @@ int hybrid_decoder(
          gf2x_toggle_coeff(error + col_block * NUM_DIGITS_GF2X_ELEMENT, col_bit);
       }
    }
+
+   ////////
+   return 1;
+}
+////////////////////////////////////////////////////////////////////////////////
+int hybrid_decoder_2(
+   OUT DIGIT error[N0*NUM_DIGITS_GF2X_ELEMENT], 
+   IN  POS Htr_sparse[N0][PAD32(V)], 
+   IN  POS H_sparse[N0][PAD32(V)], 
+   IN  POS Htr_sparse_nopad[N0][V], 
+   IN  DIGIT syndrome[NUM_DIGITS_GF2X_ELEMENT],
+   IN  int oop_iterations)
+{
+   // /* expand each syndome bit to u8 */
+   // uint8_t syndrome_bits[P];
+   // dense_to_u8(syndrome_bits, syndrome, P);
+   // /* vectorize H_sparse */
+   // __m256i v_H_sparse[N0][N_REGS_H];
+   // for (int block = 0; block < N0; block++) {
+   //    for (int r = 0; r < N_REGS_H; r++) {
+   //       v_H_sparse[block][r] = _mm256_loadu_si256((__m256i *)&H_sparse[block][r * 8]);
+   //    }
+   // }
+   // /* compute unsatisfied parity checks */
+   // ALIGNED uint8_t upc[PAD8(N0 * P)] = {0};
+   // compute_upcs(upc, Htr_sparse, syndrome_bits);
+   // /* decoding iterations */
+   // int iter = 0;
+   // int hw = population_count(syndrome);
+   // do {
+   //    POS col = argmax_u8(upc);
+   //    int col_block = col / P;
+   //    int col_bit = col % P;
+   //    gf2x_toggle_coeff(error + col_block * NUM_DIGITS_GF2X_ELEMENT, col_bit);
+   //    hw = update_syndrome_and_upcs(upc, Htr_sparse, v_H_sparse, col, syndrome_bits, hw);
+   //    DEBUG_PRINT("i: %d \t hw(s): %d \n", iter, hw);
+   //    iter++;
+   // } while ((iter < ITER_MAX_HYBRID) && (hw != 0));
+   // ////////
+   // u8_to_dense(syndrome, syndrome_bits, P);
+   
+   OPT_bf_decoder_post(error, Htr_sparse_nopad, syndrome, oop_iterations);
+   
    ////////
    return 1;
 }

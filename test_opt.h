@@ -177,6 +177,7 @@ static INLINE void OPT_bitslice_sum_in_place(OPT_bs_operand_t * a, SLICE_TYPE b,
    if(offset+dim_1<BITSLICED_OPERAND_NUM_OF_SLICES) a->slice[offset+dim_1] = carry;
 }
 ////////////////////////////////////////////////////////////////////////////////
+/* python3 generate_all_bitsliced_parms.py list_of_all_vs.txt */
 void OPT_update_error_vector_block(SLICE_TYPE err[], DIGIT orig_syndrome[], CONST POS HPosOnes[], OPT_bs_operand_t neg_threshold_bs)
 {
     alignas(32) OPT_bs_operand_t upc[NUM_SLICES_GF2X_ELEMENT];
@@ -187,7 +188,6 @@ void OPT_update_error_vector_block(SLICE_TYPE err[], DIGIT orig_syndrome[], CONS
     DIGIT d_mask = ((DIGIT)1 << (P%DIGIT_SIZE_b))-1;
     int left_shift_amt = (P%DIGIT_SIZE_b);
     int right_shift_amt = DIGIT_SIZE_b - left_shift_amt;
-
     syndrome[NUM_DIGITS_GF2X_ELEMENT-1] = (syndrome[0] << (P%DIGIT_SIZE_b)) | (syndrome[NUM_DIGITS_GF2X_ELEMENT - 1] & d_mask);
     for(int i=0; i<2*NUM_DIGITS_GF2X_ELEMENT; i++){
         syndrome[NUM_DIGITS_GF2X_ELEMENT+i] = (syndrome[i]>>right_shift_amt) | (syndrome[i+1]<<left_shift_amt);
@@ -328,8 +328,12 @@ void OPT_update_error_vector_block(SLICE_TYPE err[], DIGIT orig_syndrome[], CONS
     OPT_SHIFT_ROTATE_RIGHT((DIGIT *) shifted, HPosOnes[66], syndrome);
     for(int i=0; i<NUM_SLICES_GF2X_ELEMENT; i++) OPT_bitslice_sum_in_place(&upc[i], shifted[i], 0, 0, 8);
     OPT_SHIFT_ROTATE_RIGHT((DIGIT *) shifted, HPosOnes[67], syndrome);
-    for(int i=0; i<NUM_SLICES_GF2X_ELEMENT; i++) OPT_bitslice_sum_in_place(&upc[i], shifted[i], 2, 1, 6);
+    for(int i=0; i<NUM_SLICES_GF2X_ELEMENT; i++) OPT_bitslice_sum_in_place(&upc[i], shifted[i], 0, 0, 9);
     OPT_SHIFT_ROTATE_RIGHT((DIGIT *) shifted, HPosOnes[68], syndrome);
+    for(int i=0; i<NUM_SLICES_GF2X_ELEMENT; i++) OPT_bitslice_sum_in_place(&upc[i], shifted[i], 1, 1, 8);
+    OPT_SHIFT_ROTATE_RIGHT((DIGIT *) shifted, HPosOnes[69], syndrome);
+    for(int i=0; i<NUM_SLICES_GF2X_ELEMENT; i++) OPT_bitslice_sum_in_place(&upc[i], shifted[i], 2, 2, 6);
+    OPT_SHIFT_ROTATE_RIGHT((DIGIT *) shifted, HPosOnes[70], syndrome);
     for(int i=0; i<NUM_SLICES_GF2X_ELEMENT; i++) OPT_bitslice_sum_in_place(&upc[i], shifted[i], 6, 3, 0);
 
     for(int i=0; i<NUM_SLICES_GF2X_ELEMENT; i++){
@@ -373,49 +377,120 @@ void OPT_gf2x_mod_mul_dense_to_sparse(DIGIT Res[],
     OPT_gf2x_mod_fmac_dense_to_sparse(Res, dense, sparse, nPos);
 }
 ////////////////////////////////////////////////////////////////////////////////
-int OPT_bf_decoder(DIGIT error[N0*NUM_DIGITS_GF2X_ELEMENT],
-                   CONST POS H_sparse[N0][V],
-                //    CONST DIGIT publicSyndrome[])
-                   CONST DIGIT privateSyndrome[])
+int OPT_bf_decoder(
+   OUT DIGIT error[N0*NUM_DIGITS_GF2X_ELEMENT],
+   IN  POS H_sparse[N0][V],
+   IN  DIGIT syndrome[NUM_DIGITS_GF2X_ELEMENT])
 {
-    DEBUG_PRINT("i: F \t hw(s): %d \n", population_count(privateSyndrome));
+   DEBUG_PRINT("i: F \t hw(s): %d \n", population_count(syndrome));
+
    int thresholds[ITER_MAX_OOP];
    thresholds[0] = TH0;
    thresholds[1] = TH1;
    thresholds[2] = TH2;
-   for(int i=3; i<ITER_MAX_OOP; i++){
+   for (int i = 3; i < ITER_MAX_OOP; i++) {
+      thresholds[i] = (V + 1) / 2;
+   }
+
+   alignas(32) DIGIT estimate[N0 * NUM_SLICES_GF2X_ELEMENT * (NUM_BITS_IN_BITSLICED_OP / DIGIT_SIZE_b)] = {0};
+   alignas(32) DIGIT currSyndrome[NUM_DIGITS_GF2X_ELEMENT];
+   int syn_weight = P;
+   OPT_gf2x_copy(currSyndrome, syndrome);
+
+   for (int iteration = 0; iteration < ITER_MAX_OOP; iteration++) {
+      
+      /* Fixed threshold per iteration */
+      OPT_bs_operand_t sliced_threshold;
+      sliced_threshold = OPT_slice_constant((uint32_t)(-thresholds[iteration]));
+      
+      // Update error estimate
+      for (int i = 0; i < N0; i++) {
+         OPT_update_error_vector_block((SLICE_TYPE *)(estimate + i * NUM_SLICES_GF2X_ELEMENT * (NUM_BITS_IN_BITSLICED_OP / DIGIT_SIZE_b)), currSyndrome, H_sparse[i], sliced_threshold);
+         estimate[i * NUM_SLICES_GF2X_ELEMENT * (NUM_BITS_IN_BITSLICED_OP / DIGIT_SIZE_b) + NUM_DIGITS_GF2X_ELEMENT - 1] &= SLACK_CLEAR_MASK;
+      }
+      if (iteration > 0)
+         OPT_gf2x_copy(currSyndrome, syndrome);
+      for (int i = 0; i < N0; i++) {
+         OPT_gf2x_mod_fmac_dense_to_sparse(currSyndrome, estimate + i * NUM_SLICES_GF2X_ELEMENT * (NUM_BITS_IN_BITSLICED_OP / DIGIT_SIZE_b), H_sparse[i], V);
+      }
+      currSyndrome[NUM_DIGITS_GF2X_ELEMENT - 1] &= SLACK_CLEAR_MASK;
+
+      // Check if the Hamming weight of the syndrome is 0
+      syn_weight = population_count(currSyndrome);
+      DEBUG_PRINT("i: %d \t hw(s): %d \t hw(e): %d\n", iteration, syn_weight, population_count(estimate) + population_count(estimate + NUM_SLICES_GF2X_ELEMENT * (NUM_BITS_IN_BITSLICED_OP / DIGIT_SIZE_b)));
+      if (syn_weight == 0)
+         break;
+   }
+
+   // Check if the Hamming weight of the found solution matches NUM_ERRORS_T
+   int weight = 0;
+   for (int i = 0; i < N0; i++) {
+      for (int j = 0; j < NUM_DIGITS_GF2X_ELEMENT; j++) {
+         error[(i * NUM_DIGITS_GF2X_ELEMENT) + j] = estimate[(i * NUM_SLICES_GF2X_ELEMENT * (NUM_BITS_IN_BITSLICED_OP / DIGIT_SIZE_b)) + j];
+      }
+      error[i * NUM_DIGITS_GF2X_ELEMENT + NUM_DIGITS_GF2X_ELEMENT - 1] &= SLACK_CLEAR_MASK;
+      weight += population_count(&error[i * NUM_DIGITS_GF2X_ELEMENT]);
+   }
+
+   return (weight == NUM_ERRORS_T) && (syn_weight == 0);
+}
+////////////////////////////////////////////////////////////////////////////////
+int OPT_bf_decoder_post(
+   IO  DIGIT error[N0*NUM_DIGITS_GF2X_ELEMENT],
+   IN  POS H_sparse[N0][V],
+   IN  DIGIT syndrome[NUM_DIGITS_GF2X_ELEMENT],
+   IN  int number_of_iterations)
+{
+   int thresholds[number_of_iterations];
+   thresholds[0] = TH0;
+   thresholds[1] = TH1;
+   thresholds[2] = TH2;
+   for(int i=3; i<number_of_iterations; i++){
       thresholds[i] = (V+1)/2;
    }
+
    alignas(32) DIGIT estimate[N0 * NUM_SLICES_GF2X_ELEMENT * (NUM_BITS_IN_BITSLICED_OP / DIGIT_SIZE_b)] = {0};
-    // alignas(32) DIGIT privateSyndrome[NUM_DIGITS_GF2X_ELEMENT];
+
+   // copy error into estimate (convert to bitsliced representation)
+   for (int i = 0; i < N0; i++) {
+       for (int j = 0; j < NUM_DIGITS_GF2X_ELEMENT; j++) {
+           estimate[(i * NUM_SLICES_GF2X_ELEMENT * (NUM_BITS_IN_BITSLICED_OP / DIGIT_SIZE_b)) + j] = error[(i * NUM_DIGITS_GF2X_ELEMENT) + j];
+       }
+   }
+
     alignas(32) DIGIT currSyndrome[NUM_DIGITS_GF2X_ELEMENT];
     int syn_weight = P;
-    // OPT_gf2x_mod_mul_dense_to_sparse(privateSyndrome,
-    //                                  publicSyndrome,
-    //                                  H_sparse[N0 - 1],
-    //                                  V);
-    OPT_gf2x_copy(currSyndrome, privateSyndrome);
-    for (int iteration = 0; iteration < ITER_MAX_OOP; iteration++) {
-        /* Fixed threshold per iteration */
+
+    OPT_gf2x_copy(currSyndrome, syndrome);
+
+    // printf("HW(s)\t%d\n", population_count(currSyndrome));
+
+    
+    for (int iteration = 0; iteration < number_of_iterations; iteration++) {
+
+      if (population_count(currSyndrome) == 0) return 1;
+        
+      /* Fixed threshold per iteration */
         OPT_bs_operand_t sliced_threshold;
         sliced_threshold = OPT_slice_constant((uint32_t)(-thresholds[iteration]));
+        
         // Update error estimate
         for (int i = 0; i < N0; i++) {
             OPT_update_error_vector_block((SLICE_TYPE *)(estimate + i * NUM_SLICES_GF2X_ELEMENT * (NUM_BITS_IN_BITSLICED_OP / DIGIT_SIZE_b)), currSyndrome, H_sparse[i], sliced_threshold);
             estimate[i * NUM_SLICES_GF2X_ELEMENT * (NUM_BITS_IN_BITSLICED_OP / DIGIT_SIZE_b) + NUM_DIGITS_GF2X_ELEMENT - 1] &= SLACK_CLEAR_MASK;
         }
         if (iteration > 0)
-            OPT_gf2x_copy(currSyndrome, privateSyndrome);
+            OPT_gf2x_copy(currSyndrome, syndrome);
         for (int i = 0; i < N0; i++) {
             OPT_gf2x_mod_fmac_dense_to_sparse(currSyndrome, estimate + i * NUM_SLICES_GF2X_ELEMENT * (NUM_BITS_IN_BITSLICED_OP / DIGIT_SIZE_b), H_sparse[i], V);
         }
         currSyndrome[NUM_DIGITS_GF2X_ELEMENT - 1] &= SLACK_CLEAR_MASK;
+      
         // Check if the Hamming weight of the syndrome is 0
         syn_weight = population_count(currSyndrome);
-        DEBUG_PRINT("i: %d \t hw(s): %d \t hw(e): %d\n", iteration, syn_weight, population_count(estimate)+population_count(estimate+NUM_SLICES_GF2X_ELEMENT * (NUM_BITS_IN_BITSLICED_OP / DIGIT_SIZE_b)));
-        if (syn_weight == 0)
-            break;
+        if (syn_weight == 0) break;
     }
+   
     // Check if the Hamming weight of the found solution matches NUM_ERRORS_T
     int weight = 0;
     for (int i = 0; i < N0; i++) {
@@ -425,6 +500,9 @@ int OPT_bf_decoder(DIGIT error[N0*NUM_DIGITS_GF2X_ELEMENT],
         error[i * NUM_DIGITS_GF2X_ELEMENT + NUM_DIGITS_GF2X_ELEMENT - 1] &= SLACK_CLEAR_MASK;
         weight += population_count(&error[i * NUM_DIGITS_GF2X_ELEMENT]);
     }
+
+    // printf("HW(s)\t%d\n", population_count(currSyndrome));
+    
     return (weight == NUM_ERRORS_T) && (syn_weight == 0);
 }
 ////////////////////////////////////////////////////////////////////////////////

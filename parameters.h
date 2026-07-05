@@ -52,22 +52,19 @@ unsigned int synd_corrt_vec[][2]= {SYNDROME_TRESH_LOOKUP_TABLE};
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// #define PAD_H 1
-#define PAD_H 0
-
-#if PAD_H
-
-#define PAD32(x)              (x)
-#define PAD8(x)               (x)
-
-#else
-
 /* round up the size of an array of 32-bit integers to fit inside YMM regs */
 #define PAD32(x)              (((x) + I32_IN_YMM - 1) & ~(I32_IN_YMM - 1))
 /* round up the size of an array of 8-bit integers to fit inside YMM regs */
 #define PAD8(x)               (((x) + I8_IN_YMM - 1) & ~(I8_IN_YMM - 1))
 
-#endif
+////////////////////////////////////////////////////////////////////////////////
+
+#define WORD_LEVEL_SHIFT word_level_shift_VT
+#define SLACK_SIZE (DIGIT_SIZE_b-(P%DIGIT_SIZE_b))
+#define SLACK_CLEAR_MASK ( ((DIGIT) 0 - 1) >> (DIGIT_SIZE_b-(P%DIGIT_SIZE_b)))
+#define SLACK_EXTRACT(digit_to_extract)  (digit_to_extract >> (P%DIGIT_SIZE_b) )
+#define LO_SHIFT_AMT_BITS (BITS_TO_REPRESENT(DIGIT_SIZE_b-1))
+#define HI_SHIFT_AMT_BITS (BITS_TO_REPRESENT(P) - LO_SHIFT_AMT_BITS)
 
 ////////////////////////////////////////////////////////////////////////////////
 

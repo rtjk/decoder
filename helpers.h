@@ -41,6 +41,7 @@
 
 #define IN                  // input parameter
 #define OUT                 // output parameter
+#define IO
 
 ////////////////////////////////////////////////////////////////////////////////
 
