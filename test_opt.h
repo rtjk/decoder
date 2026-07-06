@@ -423,13 +423,6 @@ int OPT_bf_decoder(
          break;
    }
 
-   // printf("P: %d\n", P);
-   // printf("NUM_DIGITS_GF2X_ELEMENT: %d\n", NUM_DIGITS_GF2X_ELEMENT);
-   // printf("NUM_SLICES_GF2X_ELEMENT: %d\n", NUM_SLICES_GF2X_ELEMENT);
-   // printf("NUM_BITS_IN_BITSLICED_OP: %d\n", NUM_BITS_IN_BITSLICED_OP);
-   // printf("NUM_SLICES_GF2X_ELEMENT * (NUM_BITS_IN_BITSLICED_OP / DIGIT_SIZE_b): %d\n", NUM_SLICES_GF2X_ELEMENT * (NUM_BITS_IN_BITSLICED_OP / DIGIT_SIZE_b));
-   // exit(1);
-
    // Check if the Hamming weight of the found solution matches NUM_ERRORS_T
    int weight = 0;
    for (int i = 0; i < N0; i++) {
