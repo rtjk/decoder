@@ -142,6 +142,7 @@ static INLINE void u8_to_dense(
    IN  uint8_t u8[],
    IN  int len)
 {
+   memset(dense, 0, NUM_DIGITS_GF2X_ELEMENT * DIGIT_SIZE_B);
    for (int i = 0; i < len; i++) {
       if (u8[i]) {
          gf2x_toggle_coeff(dense, i);
@@ -216,6 +217,8 @@ int hybrid_decoder(
    } while ((iter < ITER_MAX_HYBRID) && (hw != 0));
    ////////
    u8_to_dense(syndrome, syndrome_bits, P);
+
+   printf("hw(e)=%d\n", population_count(error));
    
    int chosen_th = (V+1)/2;
    for (int i = 0; i < N0 * P; i++) {
@@ -238,35 +241,42 @@ int hybrid_decoder_2(
    IN  DIGIT syndrome[NUM_DIGITS_GF2X_ELEMENT],
    IN  int oop_iterations)
 {
-   // /* expand each syndome bit to u8 */
-   // uint8_t syndrome_bits[P];
-   // dense_to_u8(syndrome_bits, syndrome, P);
-   // /* vectorize H_sparse */
-   // __m256i v_H_sparse[N0][N_REGS_H];
-   // for (int block = 0; block < N0; block++) {
-   //    for (int r = 0; r < N_REGS_H; r++) {
-   //       v_H_sparse[block][r] = _mm256_loadu_si256((__m256i *)&H_sparse[block][r * 8]);
-   //    }
-   // }
-   // /* compute unsatisfied parity checks */
-   // ALIGNED uint8_t upc[PAD8(N0 * P)] = {0};
-   // compute_upcs(upc, Htr_sparse, syndrome_bits);
-   // /* decoding iterations */
-   // int iter = 0;
-   // int hw = population_count(syndrome);
-   // do {
-   //    POS col = argmax_u8(upc);
-   //    int col_block = col / P;
-   //    int col_bit = col % P;
-   //    gf2x_toggle_coeff(error + col_block * NUM_DIGITS_GF2X_ELEMENT, col_bit);
-   //    hw = update_syndrome_and_upcs(upc, Htr_sparse, v_H_sparse, col, syndrome_bits, hw);
-   //    DEBUG_PRINT("i: %d \t hw(s): %d \n", iter, hw);
-   //    iter++;
-   // } while ((iter < ITER_MAX_HYBRID) && (hw != 0));
-   // ////////
-   // u8_to_dense(syndrome, syndrome_bits, P);
+   /* expand each syndome bit to u8 */
+   uint8_t syndrome_bits[P];
+   dense_to_u8(syndrome_bits, syndrome, P);
+   /* vectorize H_sparse */
+   __m256i v_H_sparse[N0][N_REGS_H];
+   for (int block = 0; block < N0; block++) {
+      for (int r = 0; r < N_REGS_H; r++) {
+         v_H_sparse[block][r] = _mm256_loadu_si256((__m256i *)&H_sparse[block][r * 8]);
+      }
+   }
+   /* compute unsatisfied parity checks */
+   ALIGNED uint8_t upc[PAD8(N0 * P)] = {0};
+   compute_upcs(upc, Htr_sparse, syndrome_bits);
+   /* decoding iterations */
+   int iter = 0;
+   int hw = population_count(syndrome);
+   do {
+      POS col = argmax_u8(upc);
+      int col_block = col / P;
+      int col_bit = col % P;
+      gf2x_toggle_coeff(error + col_block * NUM_DIGITS_GF2X_ELEMENT, col_bit);
+      hw = update_syndrome_and_upcs(upc, Htr_sparse, v_H_sparse, col, syndrome_bits, hw);
+      DEBUG_PRINT("i: %d \t hw(s): %d \n", iter, hw);
+      iter++;
+   } while ((iter < ITER_MAX_HYBRID) && (hw != 0));
+   ////////
+   u8_to_dense(syndrome, syndrome_bits, P);
+
+   printf("hw(e)=%d\n", population_count(error) + population_count(error + NUM_DIGITS_GF2X_ELEMENT));
+   printf("hw(s)=%d\n", population_count(syndrome));
    
    OPT_bf_decoder_post(error, Htr_sparse_nopad, syndrome, oop_iterations);
+   
+   printf("~hw(e)=%d\n", population_count(error) + population_count(error + NUM_DIGITS_GF2X_ELEMENT));
+   printf("~hw(s)=%d\n", population_count(syndrome));
+   printf("\n\n");
    
    ////////
    return 1;
