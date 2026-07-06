@@ -109,3 +109,21 @@ void u64_arr_print_bin(const uint64_t *arr, size_t n, uint8_t endianness) {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+#define PADDED_BLOCK_DIGITS (NUM_SLICES_GF2X_ELEMENT * (NUM_BITS_IN_BITSLICED_OP / DIGIT_SIZE_b))
+
+void print_u64_special(uint64_t *arr, size_t n) {
+    for (int i = 0; i < n; i++) {
+        if (arr[i] != 0) {
+            // print bits
+            printf("[%d]\t", i);
+            for (int j = 0; j < 64; j++) {
+                printf("%d", (arr[i] >> (64 - 1 - j)) & 1);
+            }
+            printf("\n");
+        }
+    }
+    printf("\n");
+}
+
+////////////////////////////////////////////////////////////////////////////////

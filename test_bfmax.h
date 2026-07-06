@@ -241,6 +241,9 @@ int hybrid_decoder_2(
    IN  DIGIT syndrome[NUM_DIGITS_GF2X_ELEMENT],
    IN  int oop_iterations)
 {
+
+   // memset(error, 0, N0 * NUM_DIGITS_GF2X_ELEMENT * DIGIT_SIZE_B);
+
    /* expand each syndome bit to u8 */
    uint8_t syndrome_bits[P];
    dense_to_u8(syndrome_bits, syndrome, P);
