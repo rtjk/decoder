@@ -456,10 +456,11 @@ int OPT_bf_decoder_post(
       // thresholds[i] = TH0;
    }
 
+   // copy the error to xor later
    DIGIT error_copy[N0 * NUM_DIGITS_GF2X_ELEMENT] = {0};
    memcpy(error_copy, error, N0 * NUM_DIGITS_GF2X_ELEMENT * DIGIT_SIZE_B);
 
-   // ! pad each error block to 256 bits
+   // pad each error block to 256 bits
    alignas(32) DIGIT estimate[N0 * NUM_SLICES_GF2X_ELEMENT * (NUM_BITS_IN_BITSLICED_OP / DIGIT_SIZE_b)] = {0};
 
    // copy error into estimate
