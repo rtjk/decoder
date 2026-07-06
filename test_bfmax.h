@@ -271,16 +271,7 @@ int hybrid_decoder_2(
    } while ((iter < ITER_MAX_HYBRID) && (hw != 0));
    ////////
    u8_to_dense(syndrome, syndrome_bits, P);
-
-   printf("hw(e)=%d\n", population_count(error) + population_count(error + NUM_DIGITS_GF2X_ELEMENT));
-   printf("hw(s)=%d\n", population_count(syndrome));
-   
    OPT_bf_decoder_post(error, Htr_sparse_nopad, syndrome, oop_iterations);
-   
-   printf("~hw(e)=%d\n", population_count(error) + population_count(error + NUM_DIGITS_GF2X_ELEMENT));
-   printf("~hw(s)=%d\n", population_count(syndrome));
-   printf("\n\n");
-   
    ////////
    return 1;
 }

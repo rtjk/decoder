@@ -452,8 +452,8 @@ int OPT_bf_decoder_post(
    int thresholds[number_of_iterations];
    int th_start_idx = 0;
    for (int i = th_start_idx; i < number_of_iterations; i++) {
-      // thresholds[i] = (V + 1) / 2;
-      thresholds[i] = TH0;
+      thresholds[i] = (V + 1) / 2;
+      // thresholds[i] = TH0;
    }
 
    DIGIT error_copy[N0 * NUM_DIGITS_GF2X_ELEMENT] = {0};
@@ -468,19 +468,12 @@ int OPT_bf_decoder_post(
       memcpy(estimate + padded_block_digits, error + block * NUM_DIGITS_GF2X_ELEMENT, NUM_DIGITS_GF2X_ELEMENT * DIGIT_SIZE_B);
    }
 
-   printf("--------\n\n");
-   printf("estimate input:\n");
-   print_u64_special((uint64_t *)estimate, N0 * PADDED_BLOCK_DIGITS);
-   printf("--------\n\n");
-
    alignas(32) DIGIT currSyndrome[NUM_DIGITS_GF2X_ELEMENT];
    int syn_weight = P;
 
    OPT_gf2x_copy(currSyndrome, syndrome);
 
    for (int iteration = 0; iteration < number_of_iterations; iteration++) {
-
-      printf("iteration: %d\n\n", iteration);
 
       if (population_count(currSyndrome) == 0)
          break;
@@ -489,18 +482,11 @@ int OPT_bf_decoder_post(
       OPT_bs_operand_t sliced_threshold;
       sliced_threshold = OPT_slice_constant((uint32_t)(-thresholds[iteration]));
 
-
-      // printf("estimate pre update:\n");
-      // print_u64_special((uint64_t *)estimate, N0 * PADDED_BLOCK_DIGITS);
-
       // Update error estimate
       for (int i = 0; i < N0; i++) {
          OPT_update_error_vector_block((SLICE_TYPE *)(estimate + i * NUM_SLICES_GF2X_ELEMENT * (NUM_BITS_IN_BITSLICED_OP / DIGIT_SIZE_b)), currSyndrome, H_sparse[i], sliced_threshold);
          estimate[i * NUM_SLICES_GF2X_ELEMENT * (NUM_BITS_IN_BITSLICED_OP / DIGIT_SIZE_b) + NUM_DIGITS_GF2X_ELEMENT - 1] &= SLACK_CLEAR_MASK;
       }
-
-      printf("estimate post update:\n");
-      print_u64_special((uint64_t *)estimate, N0 * PADDED_BLOCK_DIGITS);
 
       if (iteration > 0)
          OPT_gf2x_copy(currSyndrome, syndrome);
@@ -527,10 +513,6 @@ int OPT_bf_decoder_post(
          error[block * NUM_DIGITS_GF2X_ELEMENT + j] ^= error_copy[block * NUM_DIGITS_GF2X_ELEMENT + j];
       }
    }
-
-   printf("--------\n\n");
-   printf("error output:\n");
-   print_u64_special((uint64_t *)error, N0 * PADDED_BLOCK_DIGITS);
 
    // copy current syndrome back into syndrome
    OPT_gf2x_copy(syndrome, currSyndrome);
