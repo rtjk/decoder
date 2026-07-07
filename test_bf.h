@@ -441,12 +441,12 @@ int bf_decoder(
 int bf_decoder_post(
     IO DIGIT error[N0 * NUM_DIGITS_GF2X_ELEMENT],
     IN POS H_sparse[N0][V],
-    IN DIGIT syndrome[NUM_DIGITS_GF2X_ELEMENT],
-    IN int number_of_iterations)
+    IN DIGIT syndrome[NUM_DIGITS_GF2X_ELEMENT])
 {
+   assert(ITER_MAX_HYBRID_BF > 1);
    /* set per-iteration thresholds */
-   int thresholds[number_of_iterations];
-   for (int i = 0; i < number_of_iterations; i++) {
+   int thresholds[ITER_MAX_HYBRID_BFMAX];
+   for (int i = 0; i < ITER_MAX_HYBRID_BFMAX; i++) {
       thresholds[i] = (V + 1) / 2; // TODO: try TH0 or ((V + 1)/2)+1
    }
    /* pad each error block to 256 bits */
@@ -455,7 +455,7 @@ int bf_decoder_post(
    ALIGNED DIGIT syndrome_iter[NUM_DIGITS_GF2X_ELEMENT];
    OPT_gf2x_copy(syndrome_iter, syndrome);
    /* decoding iterations */
-   for (int iteration = 0; iteration < number_of_iterations; iteration++) {
+   for (int iteration = 0; iteration < ITER_MAX_HYBRID_BFMAX; iteration++) {
       /* early exit if the syndrome is zero */
       if (population_count(syndrome_iter) == 0)
          break;

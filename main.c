@@ -86,9 +86,9 @@ int main(int argc, char *argv[]) {
         /* decode */
         count_1 = cpucycles();
         // uint8_t ret = bfmax_decoder(e_out_dense, Htr_sparse, H_sparse, s_dense);
-        // uint8_t ret = hybrid_decoder(e_out_dense, Htr_sparse, H_sparse, s_dense);
-        uint8_t ret = hybrid_decoder_2(e_out_dense, Htr_sparse, H_sparse, Htr_sparse_nopad, s_dense);
         // uint8_t ret = bf_decoder(e_out_dense, Htr_sparse_nopad, s_dense);
+        // uint8_t ret = hybrid_decoder_single(e_out_dense, Htr_sparse, H_sparse, s_dense);
+        uint8_t ret = hybrid_decoder(e_out_dense, Htr_sparse, H_sparse, Htr_sparse_nopad, s_dense);
         count_2 = cpucycles();
 
         /* compare error vectors */

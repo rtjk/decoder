@@ -184,7 +184,7 @@ int bfmax_decoder(
    return 1;
 }
 ////////////////////////////////////////////////////////////////////////////////
-int hybrid_decoder(
+int hybrid_decoder_single(
    OUT DIGIT error[N0*NUM_DIGITS_GF2X_ELEMENT], 
    IN  POS Htr_sparse[N0][PAD32(V)], 
    IN  POS H_sparse[N0][PAD32(V)], 
@@ -203,7 +203,7 @@ int hybrid_decoder(
    /* compute unsatisfied parity checks */
    ALIGNED uint8_t upc[PAD8(N0 * P)] = {0};
    compute_upcs(upc, Htr_sparse, syndrome_bits);
-   /* decoding iterations */
+   /* bfmax iterations */
    int iter = 0;
    int hw = population_count(syndrome);
    do {
@@ -215,7 +215,7 @@ int hybrid_decoder(
       DEBUG_PRINT("i: %d \t hw(s): %d \n", iter, hw);
       iter++;
    } while ((iter < ITER_MAX_HYBRID_BFMAX) && (hw != 0));
-   ////////
+   /* single bf iteration: flip upcs over treshold */
    u8_to_dense(syndrome, syndrome_bits, P);
    int chosen_th = (V+1)/2;
    for (int i = 0; i < N0 * P; i++) {
@@ -225,11 +225,10 @@ int hybrid_decoder(
          gf2x_toggle_coeff(error + col_block * NUM_DIGITS_GF2X_ELEMENT, col_bit);
       }
    }
-   ////////
    return 1;
 }
 ////////////////////////////////////////////////////////////////////////////////
-int hybrid_decoder_2(
+int hybrid_decoder(
    OUT DIGIT error[N0*NUM_DIGITS_GF2X_ELEMENT], 
    IN  POS Htr_sparse[N0][PAD32(V)], 
    IN  POS H_sparse[N0][PAD32(V)], 
@@ -249,7 +248,7 @@ int hybrid_decoder_2(
    /* compute unsatisfied parity checks */
    ALIGNED uint8_t upc[PAD8(N0 * P)] = {0};
    compute_upcs(upc, Htr_sparse, syndrome_bits);
-   /* decoding iterations */
+   /* bfmax iterations */
    int iter = 0;
    int hw = population_count(syndrome);
    do {
@@ -261,10 +260,9 @@ int hybrid_decoder_2(
       DEBUG_PRINT("i: %d \t hw(s): %d \n", iter, hw);
       iter++;
    } while ((iter < ITER_MAX_HYBRID_BFMAX) && (hw != 0));
-   ////////
+   /* bf iterations */
    u8_to_dense(syndrome, syndrome_bits, P);
-   bf_decoder_post(error, Htr_sparse_nopad, syndrome, ITER_MAX_HYBRID_BF);
-   ////////
+   bf_decoder_post(error, Htr_sparse_nopad, syndrome);
    return 1;
 }
 ////////////////////////////////////////////////////////////////////////////////
