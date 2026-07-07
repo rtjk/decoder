@@ -11,6 +11,8 @@
 
 // #define P               (10883)
 // #define P               (8731)
+
+/* P is defined at compile time */
 #ifndef P
 #error ">> P undefined"
 #endif
