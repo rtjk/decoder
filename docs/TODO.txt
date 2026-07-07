@@ -22,3 +22,5 @@
 + modular reduction using "min" instead of "cmpgt" + "blendv" -> -4%
 + try "alignas(32)" on inputs -> no performance difference
 ////////////////////////////////////////////////////////////////////////////////
+https://stats.stackexchange.com/questions/4756/confidence-interval-for-bernoulli-sampling#6184
+////////////////////////////////////////////////////////////////////////////////
