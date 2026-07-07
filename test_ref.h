@@ -3,7 +3,7 @@
 #include "parameters.h"
 #include "test_utils.h"
 ////////////////////////////////////////////////////////////////////////////////
-int bf_decoder(DIGIT out[], // N0 polynomials
+int ref_bf_decoder(DIGIT out[], // N0 polynomials
               CONST POS HtrPosOnes[N0][PAD32(V)],
               DIGIT privateSyndrome[]  //  1 polynomial
               )

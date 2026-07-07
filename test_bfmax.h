@@ -2,7 +2,7 @@
 #include "helpers.h"
 #include "parameters.h"
 #include "test_utils.h"
-#include "test_opt.h"
+#include "test_bf.h"
 ////////////////////////////////////////////////////////////////////////////////
 #define N_REGS_H   (PAD32(V) / I32_IN_YMM)
 #define N_REGS_UPC (PAD8(N0 * P) / I8_IN_YMM)
@@ -217,9 +217,6 @@ int hybrid_decoder(
    } while ((iter < ITER_MAX_HYBRID) && (hw != 0));
    ////////
    u8_to_dense(syndrome, syndrome_bits, P);
-
-   printf("hw(e)=%d\n", population_count(error));
-   
    int chosen_th = (V+1)/2;
    for (int i = 0; i < N0 * P; i++) {
       if (upc[i] >= chosen_th) {
@@ -228,7 +225,6 @@ int hybrid_decoder(
          gf2x_toggle_coeff(error + col_block * NUM_DIGITS_GF2X_ELEMENT, col_bit);
       }
    }
-
    ////////
    return 1;
 }
@@ -268,7 +264,7 @@ int hybrid_decoder_2(
    } while ((iter < ITER_MAX_HYBRID) && (hw != 0));
    ////////
    u8_to_dense(syndrome, syndrome_bits, P);
-   OPT_bf_decoder_post(error, Htr_sparse_nopad, syndrome, oop_iterations);
+   bf_decoder_post(error, Htr_sparse_nopad, syndrome, oop_iterations);
    ////////
    return 1;
 }

@@ -379,7 +379,7 @@ void OPT_gf2x_mod_mul_dense_to_sparse(DIGIT Res[],
     OPT_gf2x_mod_fmac_dense_to_sparse(Res, dense, sparse, nPos);
 }
 ////////////////////////////////////////////////////////////////////////////////
-int OPT_bf_decoder(
+int bf_decoder(
     OUT DIGIT error[N0 * NUM_DIGITS_GF2X_ELEMENT],
     IN POS H_sparse[N0][V],
     IO DIGIT syndrome[NUM_DIGITS_GF2X_ELEMENT])
@@ -438,7 +438,7 @@ int OPT_bf_decoder(
    return (weight == NUM_ERRORS_T) && (syn_weight == 0);
 }
 ////////////////////////////////////////////////////////////////////////////////
-int OPT_bf_decoder_post(
+int bf_decoder_post(
     IO DIGIT error[N0 * NUM_DIGITS_GF2X_ELEMENT],
     IN POS H_sparse[N0][V],
     IN DIGIT syndrome[NUM_DIGITS_GF2X_ELEMENT],
@@ -461,22 +461,22 @@ int OPT_bf_decoder_post(
          break;
       /* update error */
       OPT_bs_operand_t sliced_threshold = OPT_slice_constant((uint32_t)(-thresholds[iteration]));
-      for (int i = 0; i < N0; i++) {
-         OPT_update_error_vector_block((SLICE_TYPE *)(error_add + i * PADDED_BLOCK_DIGITS), syndrome_iter, H_sparse[i], sliced_threshold);
-         error_add[i * PADDED_BLOCK_DIGITS + NUM_DIGITS_GF2X_ELEMENT - 1] &= SLACK_CLEAR_MASK;
+      for (int block = 0; block < N0; block++) {
+         OPT_update_error_vector_block((SLICE_TYPE *)(error_add + block * PADDED_BLOCK_DIGITS), syndrome_iter, H_sparse[block], sliced_threshold);
+         error_add[block * PADDED_BLOCK_DIGITS + NUM_DIGITS_GF2X_ELEMENT - 1] &= SLACK_CLEAR_MASK;
       }
       /* compute syndrome */
       if (iteration > 0)
          OPT_gf2x_copy(syndrome_iter, syndrome);
-      for (int i = 0; i < N0; i++) {
-         OPT_gf2x_mod_fmac_dense_to_sparse(syndrome_iter, error_add + i * PADDED_BLOCK_DIGITS, H_sparse[i], V);
+      for (int block = 0; block < N0; block++) {
+         OPT_gf2x_mod_fmac_dense_to_sparse(syndrome_iter, error_add + block * PADDED_BLOCK_DIGITS, H_sparse[block], V);
       }
       syndrome_iter[NUM_DIGITS_GF2X_ELEMENT - 1] &= SLACK_CLEAR_MASK;
    }
    /* xor input error with the one found in the iterations */
    for (int block = 0; block < N0; block++) {
-      for (int j = 0; j < NUM_DIGITS_GF2X_ELEMENT; j++) {
-         error[block * NUM_DIGITS_GF2X_ELEMENT + j] ^= error_add[block * PADDED_BLOCK_DIGITS + j];
+      for (int digit = 0; digit < NUM_DIGITS_GF2X_ELEMENT; digit++) {
+         error[block * NUM_DIGITS_GF2X_ELEMENT + digit] ^= error_add[block * PADDED_BLOCK_DIGITS + digit];
       }
    }
    return 1;

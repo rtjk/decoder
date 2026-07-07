@@ -10,11 +10,11 @@
 
 #include "helpers.h"        // printers and random sampling
 #include "parameters.h"     // scheme parameters
+#include "stats.h"          // mean, variance, stddev
 #include "test_utils.h"     // functions to compute syndrome, transpose H, etc.
 #include "test_ref.h"       // reference decoding function
-#include "test_bfmax.h"     // optimized decoding function
-#include "test_opt.h"       //
-#include "stats.h"          //
+#include "test_bfmax.h"     // bfmax decoding function
+#include "test_bf.h"        // bit-flipping decoding function
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,16 +30,14 @@
 int main(int argc, char *argv[]) {
 
     /* argument parsing */
-    if (argc < 3)
-        ERROR("usage: %s <mode> <tests>\n", argv[0]);
+    if (argc < 3) ERROR("usage: %s <mode> <tests>\n", argv[0]);
     const int mode = atoi(argv[1]);
     const int tests = atoi(argv[2]);
 
     srand(SEED);
 
-    stats_t stats = {0};
-
     /* clock cycles */
+    stats_t stats = {0};
     uint64_t count_1;
     uint64_t count_2;
     uint64_t sum = 0;
@@ -90,7 +88,7 @@ int main(int argc, char *argv[]) {
         // uint8_t ret = bfmax_decoder(e_out_dense, Htr_sparse, H_sparse, s_dense);
         // uint8_t ret = hybrid_decoder(e_out_dense, Htr_sparse, H_sparse, s_dense);
         uint8_t ret = hybrid_decoder_2(e_out_dense, Htr_sparse, H_sparse, Htr_sparse_nopad, s_dense, 5);
-        // uint8_t ret = OPT_bf_decoder(e_out_dense, Htr_sparse_nopad, s_dense);
+        // uint8_t ret = bf_decoder(e_out_dense, Htr_sparse_nopad, s_dense);
         count_2 = cpucycles();
 
         /* compare error vectors */
