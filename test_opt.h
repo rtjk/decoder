@@ -21,6 +21,8 @@
 // TODO: reduce
 #define NUM_SLICES_GF2X_ELEMENT ( (NUM_DIGITS_GF2X_ELEMENT+3)/ (NUM_BITS_IN_BITSLICED_OP/DIGIT_SIZE_b) )
 ////////////////////////////////////////////////////////////////////////////////
+#define PADDED_BLOCK_DIGITS (NUM_SLICES_GF2X_ELEMENT * (NUM_BITS_IN_BITSLICED_OP / DIGIT_SIZE_b))
+////////////////////////////////////////////////////////////////////////////////
 typedef struct {
    SLICE_TYPE slice[BITSLICED_OPERAND_NUM_OF_SLICES];
 } OPT_bs_operand_t;
@@ -442,49 +444,42 @@ int OPT_bf_decoder_post(
     IN DIGIT syndrome[NUM_DIGITS_GF2X_ELEMENT],
     IN int number_of_iterations)
 {
+   /* set per-iteration thresholds */
    int thresholds[number_of_iterations];
    for (int i = 0; i < number_of_iterations; i++) {
-      thresholds[i] = (V + 1) / 2;
-      // thresholds[i] = TH0;
+      thresholds[i] = (V + 1) / 2; // TODO: try TH0 or ((V + 1)/2)+1
    }
-
-   // pad each error block to 256 bits
+   /* pad each error block to 256 bits */
    alignas(32) DIGIT error_add[N0 * NUM_SLICES_GF2X_ELEMENT * (NUM_BITS_IN_BITSLICED_OP / DIGIT_SIZE_b)] = {0};
-
-   alignas(32) DIGIT currSyndrome[NUM_DIGITS_GF2X_ELEMENT];
-   OPT_gf2x_copy(currSyndrome, syndrome);
-
-   // decoding iterations
+   /* recompute the syndrome for each iteration */
+   alignas(32) DIGIT syndrome_iter[NUM_DIGITS_GF2X_ELEMENT];
+   OPT_gf2x_copy(syndrome_iter, syndrome);
+   /* decoding iterations */
    for (int iteration = 0; iteration < number_of_iterations; iteration++) {
-
-      // early exit if the syndrome is zero
-      if (population_count(currSyndrome) == 0)
+      /* early exit if the syndrome is zero */
+      if (population_count(syndrome_iter) == 0)
          break;
-
-      // update error
+      /* update error */
       OPT_bs_operand_t sliced_threshold = OPT_slice_constant((uint32_t)(-thresholds[iteration]));
       for (int i = 0; i < N0; i++) {
-         OPT_update_error_vector_block((SLICE_TYPE *)(error_add + i * NUM_SLICES_GF2X_ELEMENT * (NUM_BITS_IN_BITSLICED_OP / DIGIT_SIZE_b)), currSyndrome, H_sparse[i], sliced_threshold);
+         OPT_update_error_vector_block((SLICE_TYPE *)(error_add + i * NUM_SLICES_GF2X_ELEMENT * (NUM_BITS_IN_BITSLICED_OP / DIGIT_SIZE_b)), syndrome_iter, H_sparse[i], sliced_threshold);
          error_add[i * NUM_SLICES_GF2X_ELEMENT * (NUM_BITS_IN_BITSLICED_OP / DIGIT_SIZE_b) + NUM_DIGITS_GF2X_ELEMENT - 1] &= SLACK_CLEAR_MASK;
       }
-
-      // update syndrome
+      /* compute syndrome */
       if (iteration > 0)
-         OPT_gf2x_copy(currSyndrome, syndrome);
+         OPT_gf2x_copy(syndrome_iter, syndrome);
       for (int i = 0; i < N0; i++) {
-         OPT_gf2x_mod_fmac_dense_to_sparse(currSyndrome, error_add + i * NUM_SLICES_GF2X_ELEMENT * (NUM_BITS_IN_BITSLICED_OP / DIGIT_SIZE_b), H_sparse[i], V);
+         OPT_gf2x_mod_fmac_dense_to_sparse(syndrome_iter, error_add + i * NUM_SLICES_GF2X_ELEMENT * (NUM_BITS_IN_BITSLICED_OP / DIGIT_SIZE_b), H_sparse[i], V);
       }
-      currSyndrome[NUM_DIGITS_GF2X_ELEMENT - 1] &= SLACK_CLEAR_MASK;
+      syndrome_iter[NUM_DIGITS_GF2X_ELEMENT - 1] &= SLACK_CLEAR_MASK;
    }
-
-   // xor input error with the one found in the iterations
+   /* xor input error with the one found in the iterations */
    for (int block = 0; block < N0; block++) {
       int padded_block_digits = block * NUM_SLICES_GF2X_ELEMENT * (NUM_BITS_IN_BITSLICED_OP / DIGIT_SIZE_b);
       for (int j = 0; j < NUM_DIGITS_GF2X_ELEMENT; j++) {
          error[block * NUM_DIGITS_GF2X_ELEMENT + j] ^= error_add[padded_block_digits + j];
       }
    }
-
    return 1;
 }
 ////////////////////////////////////////////////////////////////////////////////
