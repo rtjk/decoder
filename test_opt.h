@@ -450,9 +450,9 @@ int OPT_bf_decoder_post(
       thresholds[i] = (V + 1) / 2; // TODO: try TH0 or ((V + 1)/2)+1
    }
    /* pad each error block to 256 bits */
-   alignas(32) DIGIT error_add[N0 * NUM_SLICES_GF2X_ELEMENT * (NUM_BITS_IN_BITSLICED_OP / DIGIT_SIZE_b)] = {0};
+   ALIGNED DIGIT error_add[N0 * PADDED_BLOCK_DIGITS] = {0};
    /* recompute the syndrome for each iteration */
-   alignas(32) DIGIT syndrome_iter[NUM_DIGITS_GF2X_ELEMENT];
+   ALIGNED DIGIT syndrome_iter[NUM_DIGITS_GF2X_ELEMENT];
    OPT_gf2x_copy(syndrome_iter, syndrome);
    /* decoding iterations */
    for (int iteration = 0; iteration < number_of_iterations; iteration++) {
@@ -462,22 +462,21 @@ int OPT_bf_decoder_post(
       /* update error */
       OPT_bs_operand_t sliced_threshold = OPT_slice_constant((uint32_t)(-thresholds[iteration]));
       for (int i = 0; i < N0; i++) {
-         OPT_update_error_vector_block((SLICE_TYPE *)(error_add + i * NUM_SLICES_GF2X_ELEMENT * (NUM_BITS_IN_BITSLICED_OP / DIGIT_SIZE_b)), syndrome_iter, H_sparse[i], sliced_threshold);
-         error_add[i * NUM_SLICES_GF2X_ELEMENT * (NUM_BITS_IN_BITSLICED_OP / DIGIT_SIZE_b) + NUM_DIGITS_GF2X_ELEMENT - 1] &= SLACK_CLEAR_MASK;
+         OPT_update_error_vector_block((SLICE_TYPE *)(error_add + i * PADDED_BLOCK_DIGITS), syndrome_iter, H_sparse[i], sliced_threshold);
+         error_add[i * PADDED_BLOCK_DIGITS + NUM_DIGITS_GF2X_ELEMENT - 1] &= SLACK_CLEAR_MASK;
       }
       /* compute syndrome */
       if (iteration > 0)
          OPT_gf2x_copy(syndrome_iter, syndrome);
       for (int i = 0; i < N0; i++) {
-         OPT_gf2x_mod_fmac_dense_to_sparse(syndrome_iter, error_add + i * NUM_SLICES_GF2X_ELEMENT * (NUM_BITS_IN_BITSLICED_OP / DIGIT_SIZE_b), H_sparse[i], V);
+         OPT_gf2x_mod_fmac_dense_to_sparse(syndrome_iter, error_add + i * PADDED_BLOCK_DIGITS, H_sparse[i], V);
       }
       syndrome_iter[NUM_DIGITS_GF2X_ELEMENT - 1] &= SLACK_CLEAR_MASK;
    }
    /* xor input error with the one found in the iterations */
    for (int block = 0; block < N0; block++) {
-      int padded_block_digits = block * NUM_SLICES_GF2X_ELEMENT * (NUM_BITS_IN_BITSLICED_OP / DIGIT_SIZE_b);
       for (int j = 0; j < NUM_DIGITS_GF2X_ELEMENT; j++) {
-         error[block * NUM_DIGITS_GF2X_ELEMENT + j] ^= error_add[padded_block_digits + j];
+         error[block * NUM_DIGITS_GF2X_ELEMENT + j] ^= error_add[block * PADDED_BLOCK_DIGITS + j];
       }
    }
    return 1;
