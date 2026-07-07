@@ -386,11 +386,11 @@ int bf_decoder(
 {
    DEBUG_PRINT("i: F \t hw(s): %d \n", population_count(syndrome));
 
-   int thresholds[ITER_MAX_OOP];
+   int thresholds[ITER_MAX_BF];
    thresholds[0] = TH0;
    thresholds[1] = TH1;
    thresholds[2] = TH2;
-   for (int i = 3; i < ITER_MAX_OOP; i++) {
+   for (int i = 3; i < ITER_MAX_BF; i++) {
       thresholds[i] = (V + 1) / 2;
    }
 
@@ -400,7 +400,7 @@ int bf_decoder(
    int syn_weight = P;
    OPT_gf2x_copy(currSyndrome, syndrome);
 
-   for (int iteration = 0; iteration < ITER_MAX_OOP; iteration++) {
+   for (int iteration = 0; iteration < ITER_MAX_BF; iteration++) {
 
       /* Fixed threshold per iteration */
       OPT_bs_operand_t sliced_threshold;

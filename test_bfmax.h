@@ -214,7 +214,7 @@ int hybrid_decoder(
       hw = update_syndrome_and_upcs(upc, Htr_sparse, v_H_sparse, col, syndrome_bits, hw);
       DEBUG_PRINT("i: %d \t hw(s): %d \n", iter, hw);
       iter++;
-   } while ((iter < ITER_MAX_HYBRID) && (hw != 0));
+   } while ((iter < ITER_MAX_HYBRID_BFMAX) && (hw != 0));
    ////////
    u8_to_dense(syndrome, syndrome_bits, P);
    int chosen_th = (V+1)/2;
@@ -234,8 +234,7 @@ int hybrid_decoder_2(
    IN  POS Htr_sparse[N0][PAD32(V)], 
    IN  POS H_sparse[N0][PAD32(V)], 
    IN  POS Htr_sparse_nopad[N0][V], 
-   IN  DIGIT syndrome[NUM_DIGITS_GF2X_ELEMENT],
-   IN  int oop_iterations)
+   IN  DIGIT syndrome[NUM_DIGITS_GF2X_ELEMENT])
 {
    /* expand each syndome bit to u8 */
    uint8_t syndrome_bits[P];
@@ -261,10 +260,10 @@ int hybrid_decoder_2(
       hw = update_syndrome_and_upcs(upc, Htr_sparse, v_H_sparse, col, syndrome_bits, hw);
       DEBUG_PRINT("i: %d \t hw(s): %d \n", iter, hw);
       iter++;
-   } while ((iter < ITER_MAX_HYBRID) && (hw != 0));
+   } while ((iter < ITER_MAX_HYBRID_BFMAX) && (hw != 0));
    ////////
    u8_to_dense(syndrome, syndrome_bits, P);
-   bf_decoder_post(error, Htr_sparse_nopad, syndrome, oop_iterations);
+   bf_decoder_post(error, Htr_sparse_nopad, syndrome, ITER_MAX_HYBRID_BF);
    ////////
    return 1;
 }

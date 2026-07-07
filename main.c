@@ -87,7 +87,7 @@ int main(int argc, char *argv[]) {
         count_1 = cpucycles();
         // uint8_t ret = bfmax_decoder(e_out_dense, Htr_sparse, H_sparse, s_dense);
         // uint8_t ret = hybrid_decoder(e_out_dense, Htr_sparse, H_sparse, s_dense);
-        uint8_t ret = hybrid_decoder_2(e_out_dense, Htr_sparse, H_sparse, Htr_sparse_nopad, s_dense, 5);
+        uint8_t ret = hybrid_decoder_2(e_out_dense, Htr_sparse, H_sparse, Htr_sparse_nopad, s_dense);
         // uint8_t ret = bf_decoder(e_out_dense, Htr_sparse_nopad, s_dense);
         count_2 = cpucycles();
 
