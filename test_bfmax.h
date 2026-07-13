@@ -9,6 +9,9 @@
 #define N_REGS_UPC512      (N_REGS_UPC / 2)
 #define N_REGS_UPC_TAIL     (N_REGS_UPC % 2)
 
+#define I32_IN_ZMM      (512/32)
+#define N_REGS_H512     (N_REGS_H / 2)
+#define N_REGS_H_TAIL   (N_REGS_H % 2)
 ////////////////////////////////////////////////////////////////////////////////
 #define WORD_LEVEL_SHIFT word_level_shift_VT
 #define SLACK_SIZE (DIGIT_SIZE_b-(P%DIGIT_SIZE_b))
@@ -171,6 +174,140 @@ static INLINE int update_syndrome_and_upcs(
    }
    return hw;
 }
+
+
+static INLINE int update_syndrome_and_upcs_avx512(
+   OUT uint8_t upc[PAD8(N0 * P)], 
+   IN  POS Htr_sparse[N0][PAD32(V)], 
+   IN  __m256i v_H_sparse[N0][N_REGS_H],
+   IN  POS flip, 
+   OUT uint8_t syndrome_bits[P],
+   IN  int hw)
+{
+
+   int flip_block = flip / P;
+   int flip_bit = flip - flip_block * P;
+
+   __m512i vp512   = _mm512_set1_epi32((uint32_t)P);
+   __m512i vpos512 = _mm512_set1_epi32((uint32_t)flip_bit);
+#if N_REGS_H_TAIL
+   __m256i vp256 = _mm256_set1_epi32((uint32_t)P);
+#endif
+
+   /* update syndrome and save upc positions to update */
+   __m256i up_pos[V][N0][N_REGS_H];
+   int up_sign[V];
+
+   int col_reg = 0;
+
+   /* ---- AVX-512 MAIN: blocchi da 16 int32 (2 YMM alla volta) ---- */
+   for (; col_reg < N_REGS_H512; col_reg++) {
+      /* get the column of H corresponding to the flipped bit */
+      uint32_t tmp[I32_IN_ZMM];
+      __m512i htr = _mm512_loadu_si512((const void *)&Htr_sparse[flip_block][col_reg * I32_IN_ZMM]);
+      __m512i sum = _mm512_add_epi32(htr, vpos512);
+      __m512i sub = _mm512_sub_epi32(sum, vp512);
+      __m512i res = _mm512_min_epu32(sum, sub);
+      _mm512_storeu_si512((void *)tmp, res);
+
+      /* scan each idx in the column */
+      for (int i = 0; (i < I32_IN_ZMM) && (col_reg * I32_IN_ZMM + i < V); i++) {
+         int idx = col_reg * I32_IN_ZMM + i;
+         /* update the syndrome */
+         POS row = tmp[i];
+         syndrome_bits[row] ^= 1;
+         int delta = (syndrome_bits[row] == 0) ? -1 : 1;
+         hw += delta;
+         if (hw == 0) {
+            return hw;
+         }
+         up_sign[idx] = delta;
+
+         /* save upc positions to update (faster than updating upcs directly) */
+         __m512i vrow512 = _mm512_set1_epi32((uint32_t)row);
+         for (int block = 0; block < N0; block++) {
+            int row_reg = 0;
+            for (; row_reg < N_REGS_H512; row_reg++) {
+               __m512i h   = _mm512_loadu_si512((const void *)&v_H_sparse[block][row_reg * 2]);
+               __m512i col = _mm512_add_epi32(h, vrow512);
+               __m512i sb  = _mm512_sub_epi32(col, vp512);
+               __m512i r   = _mm512_min_epu32(col, sb);
+               _mm512_storeu_si512((void *)&up_pos[idx][block][row_reg * 2], r);
+            }
+#if N_REGS_H_TAIL
+            /* AVX2 TAIL BEGIN: ultimo registro YMM da 8 int32 quando
+             * N_REGS_H è dispari. Rimuovibile se in futuro N_REGS_H
+             * sarà garantito pari (basta cancellare fino a TAIL END,
+             * qui e nel blocco gemello sotto). */
+            {
+               __m256i vrow = _mm512_castsi512_si256(vrow512); /* stesso valore in ogni lane, cast gratuito */
+               __m256i col  = _mm256_add_epi32(v_H_sparse[block][row_reg * 2], vrow);
+               __m256i sb   = _mm256_sub_epi32(col, vp256);
+               __m256i r    = _mm256_min_epu32(col, sb);
+               up_pos[idx][block][row_reg * 2] = r;
+            }
+            /* AVX2 TAIL END */
+#endif
+         }
+      }
+   }
+
+#if N_REGS_H_TAIL
+   /* AVX2 TAIL BEGIN: ultimo blocco di colonna da 8 int32 (N_REGS_H dispari) */
+   {
+      uint32_t tmp[I32_IN_YMM];
+      __m256i vpos256 = _mm256_set1_epi32((uint32_t)flip_bit);
+      __m256i htr = _mm256_loadu_si256((__m256i *)&Htr_sparse[flip_block][col_reg * I32_IN_ZMM]);
+      __m256i sum = _mm256_add_epi32(htr, vpos256);
+      __m256i sub = _mm256_sub_epi32(sum, vp256);
+      __m256i res = _mm256_min_epu32(sum, sub);
+      _mm256_storeu_si256((__m256i *)tmp, res);
+
+      for (int i = 0; (i < I32_IN_YMM) && (col_reg * I32_IN_ZMM + i < V); i++) {
+         int idx = col_reg * I32_IN_ZMM + i;
+         POS row = tmp[i];
+         syndrome_bits[row] ^= 1;
+         int delta = (syndrome_bits[row] == 0) ? -1 : 1;
+         hw += delta;
+         if (hw == 0) {
+            return hw;
+         }
+         up_sign[idx] = delta;
+
+         __m256i vrow = _mm256_set1_epi32((uint32_t)row);
+         for (int block = 0; block < N0; block++) {
+            for (int row_reg = 0; row_reg < N_REGS_H; row_reg++) {
+               __m256i col = _mm256_add_epi32(v_H_sparse[block][row_reg], vrow);
+               __m256i sb  = _mm256_sub_epi32(col, vp256);
+               __m256i r   = _mm256_min_epu32(col, sb);
+               up_pos[idx][block][row_reg] = r;
+            }
+         }
+      }
+   }
+   /* AVX2 TAIL END */
+#endif
+
+   /* update upcs (invariata: legge up_pos un row_reg YMM alla volta,
+    * indipendentemente da come è stato riempito sopra) */
+   uint32_t *RESTRICT up_pos_u32 = (uint32_t *)up_pos;
+   for (int i = 0; i < V; i++) {
+      int delta = up_sign[i];
+      for (int block = 0; block < N0; block++) {
+         for (int row_reg = 0; row_reg < N_REGS_H; row_reg++) {
+            for (int lane = 0; (lane < 8) && (row_reg * 8 + lane < V); lane++) {
+               int up_idx = (((i * N0 + block) * N_REGS_H + row_reg) * 8) + lane;
+               uint32_t col = up_pos_u32[up_idx];
+               upc[block * P + col] += delta;
+            }
+         }
+      }
+   }
+   return hw;
+
+}
+
+
 ////////////////////////////////////////////////////////////////////////////////
 /* for r in rows
  *   for c in columns
