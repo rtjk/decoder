@@ -2,9 +2,13 @@
 #include "helpers.h"
 #include "parameters.h"
 #include "test_utils.h"
+#include <stdint.h>
 ////////////////////////////////////////////////////////////////////////////////
 #define N_REGS_H   (PAD32(V) / I32_IN_YMM)
 #define N_REGS_UPC (PAD8(N0 * P) / I8_IN_YMM)
+#define N_REGS_UPC512      (N_REGS_UPC / 2)
+#define N_REGS_UPC_TAIL     (N_REGS_UPC % 2)
+
 ////////////////////////////////////////////////////////////////////////////////
 #define WORD_LEVEL_SHIFT word_level_shift_VT
 #define SLACK_SIZE (DIGIT_SIZE_b-(P%DIGIT_SIZE_b))
@@ -41,6 +45,69 @@ static INLINE POS argmax_u8(uint8_t arr[PAD8(N0 * P)]) {
    }
    return (POS)-1;
 }
+
+static INLINE POS argmax_u8_avx512(uint8_t arr[PAD8(N0 * P)]) {
+   /* find max */
+
+   __m512i max_vec512 = _mm512_setzero_si512();
+    int i = 0;
+    for (; i < N_REGS_UPC512; i++) {
+        __m512i v = _mm512_loadu_si512((const void *)&arr[i * I8_IN_ZMM]);
+        max_vec512 = _mm512_max_epu8(max_vec512, v);
+    }
+    __m256i max_vec = _mm256_max_epu8(
+        _mm512_castsi512_si256(max_vec512),
+        _mm512_extracti64x4_epi64(max_vec512, 1)
+    );
+
+#if N_REGS_UPC_TAIL
+    /* AVX2 TAIL BEGIN: offset in byte = i * I8_IN_ZMM (fine dei blocchi da 64 byte),
+     * NON i * I8_IN_YMM, perché qui i è ancora contato in unità ZMM */
+    {
+        __m256i v = _mm256_loadu_si256((__m256i *)&arr[i * I8_IN_ZMM]);
+        max_vec = _mm256_max_epu8(max_vec, v);
+    }
+    /* AVX2 TAIL END */
+#endif
+
+    /* extract max: riduzione 256 -> 8 bit (invariata) */
+    __m128i lo = _mm256_castsi256_si128(max_vec);
+    __m128i hi = _mm256_extracti128_si256(max_vec, 1);
+    __m128i m = _mm_max_epu8(lo, hi);
+    m = _mm_max_epu8(m, _mm_srli_si128(m, 8));
+    m = _mm_max_epu8(m, _mm_srli_si128(m, 4));
+    m = _mm_max_epu8(m, _mm_srli_si128(m, 2));
+    m = _mm_max_epu8(m, _mm_srli_si128(m, 1));
+    uint8_t max_val = (uint8_t)_mm_extract_epi8(m, 0);
+
+    /* ---- find position of max (AVX-512, corpo principale) ---- */
+    __m512i vmax512 = _mm512_set1_epi8((char)max_val);
+    for (i = 0; i < N_REGS_UPC512; i++) {
+        __m512i v = _mm512_loadu_si512((const void *)&arr[i * I8_IN_ZMM]);
+        __mmask64 mask = _mm512_cmpeq_epi8_mask(v, vmax512);
+        if (mask) {
+            return (POS)(i * I8_IN_ZMM + __builtin_ctzll((unsigned long long)mask));
+        }
+    }
+
+#if N_REGS_UPC_TAIL
+    /* AVX2 TAIL BEGIN: stesso discorso, offset = i * I8_IN_ZMM */
+    {
+        __m256i vmax = _mm256_set1_epi8((uint8_t)max_val);
+        __m256i v = _mm256_loadu_si256((__m256i *)&arr[i * I8_IN_ZMM]);
+        __m256i cmp = _mm256_cmpeq_epi8(v, vmax);
+        int mask = _mm256_movemask_epi8(cmp);
+        if (mask) {
+            return (POS)(i * I8_IN_ZMM + __builtin_ctz(mask));
+        }
+    }
+    /* AVX2 TAIL END */
+#endif
+
+    return (POS)-1;
+}
+
+
 ////////////////////////////////////////////////////////////////////////////////
 static INLINE int update_syndrome_and_upcs(
    OUT uint8_t upc[PAD8(N0 * P)], 
@@ -147,11 +214,13 @@ int bfmax_decoder(
    OUT DIGIT error[N0*NUM_DIGITS_GF2X_ELEMENT], 
    IN  POS Htr_sparse[N0][PAD32(V)], 
    IN  POS H_sparse[N0][PAD32(V)], 
-   IN  DIGIT syndrome[NUM_DIGITS_GF2X_ELEMENT])
+   IN  uint8_t syndrome_bits[P],
+   IN  int hw_start
+)
 {
    /* expand each syndome bit to u8 */
-   uint8_t syndrome_bits[P];
-   dense_to_u8(syndrome_bits, syndrome, P);
+   //uint8_t syndrome_bits[P];
+   //dense_to_u8(syndrome_bits, syndrome, P);
    /* vectorize H_sparse */
    __m256i v_H_sparse[N0][N_REGS_H];
    for (int block = 0; block < N0; block++) {
@@ -164,9 +233,9 @@ int bfmax_decoder(
    compute_upcs(upc, Htr_sparse, syndrome_bits);
    /* decoding iterations */
    int iter = 0;
-   int hw = population_count(syndrome);
+   int hw = hw_start;
    do {
-      POS col = argmax_u8(upc);
+      POS col = argmax_u8_avx512(upc);
       int col_block = col / P;
       int col_bit = col % P;
       gf2x_toggle_coeff(error + col_block * NUM_DIGITS_GF2X_ELEMENT, col_bit);

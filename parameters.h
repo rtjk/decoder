@@ -48,6 +48,13 @@ unsigned int synd_corrt_vec[][2]= {SYNDROME_TRESH_LOOKUP_TABLE};
 /* round up the size of an array of 8-bit integers to fit inside YMM regs */
 #define PAD8(x)               (((x) + I8_IN_YMM - 1) & ~(I8_IN_YMM - 1))
 
+/* number of 8-bit integers that fit inside a ZMM register */
+#define I8_IN_ZMM             (512/8)
+/* round up the size of an array of 8-bit integers to fit inside ZMM regs */
+#define PAD64(x)              (((x) + I8_IN_ZMM - 1) & ~(I8_IN_ZMM - 1))
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 
 #define                NUM_BITS_GF2X_ELEMENT (P)
