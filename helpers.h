@@ -18,7 +18,7 @@
 #if DEBUG
 #define DEBUG_PRINT(...)                            \
     do {                                            \
-        printf("\033[0;33m [@] %s:\t ", __func__);  \
+        printf("\033[0;33m [@] [%s]\t ", __func__); \
         printf(__VA_ARGS__);                        \
         printf("\033[0m");                          \
     } while(0)
@@ -30,7 +30,7 @@
 
 #define ERROR(...)                                  \
     do {                                            \
-        printf("\n\033[0;31m [!] %s: ", __func__);  \
+        printf("\n\033[0;31m [!] [%s] ", __func__); \
         printf(__VA_ARGS__);                        \
         printf("\033[0m\n\n");                      \
         exit(1);                                    \
