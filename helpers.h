@@ -81,7 +81,7 @@ void u32_arr_rand_mod_unique(uint32_t *arr, size_t n, size_t m) {
             placed++;
         }
     }
-    // qsort(arr, n, sizeof(uint32_t), u32_cmp);
+    qsort(arr, n, sizeof(uint32_t), u32_cmp);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
