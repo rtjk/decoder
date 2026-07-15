@@ -10,8 +10,9 @@
 #define N_REGS_UPC_TAIL     (N_REGS_UPC % 2)
 
 #define I32_IN_ZMM      (512/32)
-#define N_REGS_H512     (N_REGS_H / 2)
+#define N_REGS_H512     (PAD32_ZMM(V) / I32_IN_ZMM)
 #define N_REGS_H_TAIL   (N_REGS_H % 2)
+#define PAD32_ZMM(x)    (((x) + I32_IN_ZMM - 1) & ~(I32_IN_ZMM - 1))
 
 ////////////////////////////////////////////////////////////////////////////////
 #define WORD_LEVEL_SHIFT word_level_shift_VT
@@ -177,6 +178,78 @@ static INLINE int update_syndrome_and_upcs(
    return hw;
 }
 
+static INLINE int update_syndrome_and_upcs_impv(
+   OUT uint8_t upc[PAD8(N0 * P)],
+   IN  POS Htr_sparse[N0][PAD32(V)],
+   IN  __m256i v_H_sparse[N0][N_REGS_H],
+   IN  POS flip,
+   OUT uint8_t syndrome_bits[P],
+   IN  int hw)
+{
+   int flip_block = flip / P;
+   int flip_bit = flip - flip_block * P;
+
+   __m256i vp   = _mm256_set1_epi32((uint32_t)P);
+   __m256i vpos = _mm256_set1_epi32((uint32_t)flip_bit);
+
+   /* update syndrome and save upc positions to update */
+   __m256i up_pos[V][N0][N_REGS_H];
+   int up_sign[V];
+
+   for (int col_reg = 0; col_reg < N_REGS_H; col_reg++) {
+      /* get the column of H corresponding to the flipped bit.
+       * Htr_sparse è già dichiarato con PAD32(V) elementi, quindi questo
+       * load resta sicuro senza mask (le lane oltre V sono padding valido,
+       * scartate comunque dal controllo nel loop su "i" qui sotto). */
+      uint32_t tmp[I32_IN_YMM];
+      __m256i htr = _mm256_loadu_si256((__m256i *)&Htr_sparse[flip_block][col_reg * I32_IN_YMM]);
+      __m256i sum = _mm256_add_epi32(htr, vpos);
+      __m256i sub = _mm256_sub_epi32(sum, vp);
+      __m256i res = _mm256_min_epu32(sum, sub);
+      _mm256_storeu_si256((__m256i *)tmp, res);
+
+      /* scan each idx in the column */
+      for (int i = 0; (i < I32_IN_YMM) && (col_reg * I32_IN_YMM + i < V); i++) {
+         int idx = col_reg * I32_IN_YMM + i;
+         /* update the syndrome */
+         POS row = tmp[i];
+         syndrome_bits[row] ^= 1;
+         int delta = ((int)syndrome_bits[row] << 1) - 1;
+         hw += delta;
+         if (hw == 0) {
+            return hw;
+         }
+         up_sign[idx] = delta;
+
+         /* save upc positions to update (faster than updating upcs directly) */
+         __m256i vrow = _mm256_set1_epi32((uint32_t)row);
+         for (int block = 0; block < N0; block++) {
+            for (int row_reg = 0; row_reg < N_REGS_H; row_reg++) {
+               __m256i col = _mm256_add_epi32(v_H_sparse[block][row_reg], vrow);
+               __m256i sb  = _mm256_sub_epi32(col, vp);
+               __m256i r   = _mm256_min_epu32(col, sb);
+               up_pos[idx][block][row_reg] = r;
+            }
+         }
+      }
+   }
+
+   /* update upcs */
+   uint32_t *RESTRICT up_pos_u32 = (uint32_t *)up_pos;
+   for (int i = 0; i < V; i++) {
+      int delta = up_sign[i];
+      for (int block = 0; block < N0; block++) {
+         for (int row_reg = 0; row_reg < N_REGS_H; row_reg++) {
+            for (int lane = 0; (lane < I32_IN_YMM) && (row_reg * I32_IN_YMM + lane < V); lane++) {
+               int up_idx = (((i * N0 + block) * N_REGS_H + row_reg) * I32_IN_YMM) + lane;
+               uint32_t col = up_pos_u32[up_idx];
+               upc[block * P + col] += delta;
+            }
+         }
+      }
+   }
+   return hw;
+}
 ////////////////////////////////////////////////////////////////////////////////
 /* for r in rows
  *   for c in columns
@@ -228,12 +301,24 @@ int bfmax_decoder(
    //uint8_t syndrome_bits[P];
    //dense_to_u8(syndrome_bits, syndrome, P);
    /* vectorize H_sparse */
+   /*
    __m256i v_H_sparse[N0][N_REGS_H];
    for (int block = 0; block < N0; block++) {
       for (int r = 0; r < N_REGS_H; r++) {
          v_H_sparse[block][r] = _mm256_loadu_si256((__m256i *)&H_sparse[block][r * 8]);
       }
    }
+   */
+   __m256i v_H_sparse[N0][N_REGS_H];
+   for (int block = 0; block < N0; block++) {
+   for (int r = 0; r < N_REGS_H; r++) {
+      int remaining = V - r * I32_IN_YMM;
+      __mmask8 kmask = (remaining >= I32_IN_YMM) ? 0xFF
+                     : (remaining <= 0 ? 0x00 : (__mmask8)((1u << remaining) - 1));
+      v_H_sparse[block][r] = _mm256_maskz_loadu_epi32(kmask, (const void *)&H_sparse[block][r * I32_IN_YMM]);
+      }
+   }
+
    /* compute unsatisfied parity checks */
    ALIGNED uint8_t upc[PAD8(N0 * P)] = {0};
    compute_upcs(upc, Htr_sparse, syndrome_bits);
@@ -245,7 +330,7 @@ int bfmax_decoder(
       int col_block = col / P;
       int col_bit = col % P;
       gf2x_toggle_coeff(error + col_block * NUM_DIGITS_GF2X_ELEMENT, col_bit);
-      hw = update_syndrome_and_upcs(upc, Htr_sparse, v_H_sparse, col, syndrome_bits, hw);
+      hw = update_syndrome_and_upcs_impv(upc, Htr_sparse, v_H_sparse, col, syndrome_bits, hw);
       DEBUG_PRINT("i: %d \t hw(s): %d \n", iter, hw);
       iter++;
    } while ((iter < 1.5 * NUM_ERRORS_T) && (hw != 0));
