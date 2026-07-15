@@ -218,7 +218,7 @@ int hybrid_decoder_single(
       iter++;
    } while ((iter < ITER_MAX_HYBRID_BFMAX) && (hw != 0));
    /* single bf iteration: flip upcs over treshold */
-   int chosen_th = (V+1)/2;
+   int chosen_th = TH0; // TODO: try (V+1)/2
    for (int i = 0; i < N0 * P; i++) {
       if (upc[i] >= chosen_th) {
          int col_block = i / P;
