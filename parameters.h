@@ -27,8 +27,8 @@
 #define ITER_MAX_BF             (5)
 #define ITER_MAX_BFMAX          ((int)(1.5 * NUM_ERRORS_T))
 
-#define ITER_MAX_HYBRID_BF      (2)
-#define ITER_MAX_HYBRID_BFMAX   ((int)(0.4 * NUM_ERRORS_T))
+#define ITER_MAX_HYBRID_BF      (3)
+#define ITER_MAX_HYBRID_BFMAX   ((int)(0.5 * NUM_ERRORS_T))
 
 ////////////////////////////////////////////////////////////////////////////////
 

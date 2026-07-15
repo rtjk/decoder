@@ -384,7 +384,7 @@ int bf_decoder(
     IN POS H_sparse[N0][V],
     IO DIGIT syndrome[NUM_DIGITS_GF2X_ELEMENT])
 {
-   DEBUG_PRINT("i: F \t hw(s): %d \n", population_count(syndrome));
+   DEBUG_PRINT("i: START \t hw(s): %d \n", population_count(syndrome));
 
    int thresholds[ITER_MAX_BF];
    thresholds[0] = TH0;
@@ -420,7 +420,7 @@ int bf_decoder(
 
       // Check if the Hamming weight of the syndrome is 0
       syn_weight = population_count(currSyndrome);
-      DEBUG_PRINT("i: %d \t hw(s): %d \t hw(e): %d\n", iteration, syn_weight, population_count(estimate) + population_count(estimate + NUM_SLICES_GF2X_ELEMENT * (NUM_BITS_IN_BITSLICED_OP / DIGIT_SIZE_b)));
+      DEBUG_PRINT("i: %3d \t hw(s): %d\n", iteration, syn_weight);
       if (syn_weight == 0)
          break;
    }
@@ -455,6 +455,7 @@ int bf_decoder_post(
    ALIGNED DIGIT syndrome_iter[NUM_DIGITS_GF2X_ELEMENT];
    OPT_gf2x_copy(syndrome_iter, syndrome);
    /* decoding iterations */
+   DEBUG_PRINT("i: START \t hw(s): %d \n", population_count(syndrome_iter));
    for (int iteration = 0; iteration < ITER_MAX_HYBRID_BF; iteration++) {
       /* early exit if the syndrome is zero */
       if (population_count(syndrome_iter) == 0)
@@ -472,7 +473,7 @@ int bf_decoder_post(
          OPT_gf2x_mod_fmac_dense_to_sparse(syndrome_iter, error_add + block * PADDED_BLOCK_DIGITS, H_sparse[block], V);
       }
       syndrome_iter[NUM_DIGITS_GF2X_ELEMENT - 1] &= SLACK_CLEAR_MASK;
-      DEBUG_PRINT("i: %d \t hw(s): %d \n", iteration, population_count(syndrome_iter));
+      DEBUG_PRINT("i: %3d \t hw(s): %d \n", iteration, population_count(syndrome_iter));
    }
    /* xor input error with the one found in the iterations */
    for (int block = 0; block < N0; block++) {

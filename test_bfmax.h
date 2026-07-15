@@ -172,13 +172,14 @@ int bfmax_decoder(
    /* decoding iterations */
    int iter = 0;
    int hw = population_count(syndrome);
+   DEBUG_PRINT("i: START \t hw(s): %d \n", hw);
    do {
       POS col = argmax_u8(upc);
       int col_block = col / P;
       int col_bit = col % P;
       gf2x_toggle_coeff(error + col_block * NUM_DIGITS_GF2X_ELEMENT, col_bit);
       hw = update_syndrome_and_upcs(upc, Htr_sparse, v_H_sparse, col, syndrome_bits, hw);
-      DEBUG_PRINT("i: %d \t hw(s): %d \n", iter, hw);
+      DEBUG_PRINT("i: %3d \t hw(s): %d \n", iter, hw);
       iter++;
    } while ((iter < ITER_MAX_BFMAX) && (hw != 0));
    return 1;
@@ -206,17 +207,17 @@ int hybrid_decoder_single(
    /* bfmax iterations */
    int iter = 0;
    int hw = population_count(syndrome);
+   DEBUG_PRINT("i: START \t hw(s): %d \n", hw);
    do {
       POS col = argmax_u8(upc);
       int col_block = col / P;
       int col_bit = col % P;
       gf2x_toggle_coeff(error + col_block * NUM_DIGITS_GF2X_ELEMENT, col_bit);
       hw = update_syndrome_and_upcs(upc, Htr_sparse, v_H_sparse, col, syndrome_bits, hw);
-      DEBUG_PRINT("i: %d \t hw(s): %d \n", iter, hw);
+      DEBUG_PRINT("i: %3d \t hw(s): %d \n", iter, hw);
       iter++;
    } while ((iter < ITER_MAX_HYBRID_BFMAX) && (hw != 0));
    /* single bf iteration: flip upcs over treshold */
-   u8_to_dense(syndrome, syndrome_bits, P);
    int chosen_th = (V+1)/2;
    for (int i = 0; i < N0 * P; i++) {
       if (upc[i] >= chosen_th) {
@@ -251,13 +252,14 @@ int hybrid_decoder(
    /* bfmax iterations */
    int iter = 0;
    int hw = population_count(syndrome);
+   DEBUG_PRINT("i: START \t hw(s): %d \n", hw);
    do {
       POS col = argmax_u8(upc);
       int col_block = col / P;
       int col_bit = col % P;
       gf2x_toggle_coeff(error + col_block * NUM_DIGITS_GF2X_ELEMENT, col_bit);
       hw = update_syndrome_and_upcs(upc, Htr_sparse, v_H_sparse, col, syndrome_bits, hw);
-      DEBUG_PRINT("i: %d \t hw(s): %d \n", iter, hw);
+      DEBUG_PRINT("i: %3d \t hw(s): %d \n", iter, hw);
       iter++;
    } while ((iter < ITER_MAX_HYBRID_BFMAX) && (hw != 0));
    /* bf iterations */
