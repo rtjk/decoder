@@ -472,6 +472,7 @@ int bf_decoder_post(
          OPT_gf2x_mod_fmac_dense_to_sparse(syndrome_iter, error_add + block * PADDED_BLOCK_DIGITS, H_sparse[block], V);
       }
       syndrome_iter[NUM_DIGITS_GF2X_ELEMENT - 1] &= SLACK_CLEAR_MASK;
+      DEBUG_PRINT("i: %d \t hw(s): %d \n", iteration, population_count(syndrome_iter));
    }
    /* xor input error with the one found in the iterations */
    for (int block = 0; block < N0; block++) {

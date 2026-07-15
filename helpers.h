@@ -18,7 +18,7 @@
 #if DEBUG
 #define DEBUG_PRINT(...)                            \
     do {                                            \
-        printf("\033[0;33m");                       \
+        printf("\033[0;33m [@] %s:\t ", __func__);  \
         printf(__VA_ARGS__);                        \
         printf("\033[0m");                          \
     } while(0)
