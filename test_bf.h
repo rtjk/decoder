@@ -449,6 +449,9 @@ int bf_decoder_post(
    for (int i = 0; i < ITER_MAX_HYBRID_BF; i++) {
       thresholds[i] = (V + 1) / 2; // TODO: try TH0 or ((V + 1)/2)+1
    }
+   thresholds[0] = TH0;
+   thresholds[1] = TH1;
+   if (ITER_MAX_HYBRID_BF > 2) thresholds[2] = TH2;
    /* pad each error block to 256 bits */
    ALIGNED DIGIT error_add[N0 * PADDED_BLOCK_DIGITS] = {0};
    /* recompute the syndrome for each iteration */
