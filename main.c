@@ -118,7 +118,9 @@ int main(int argc, char *argv[]) {
 
 /*
 
-rm -f main.out; gcc -o main.out main.c -march=native -O3 -lcpucycles -lm -DP=10883
-taskset --cpu-list 0 ./main.out 1 10000
+# measure clock cycles
+rm -f main.out; gcc -o main.out main.c -march=native -O3 -lcpucycles -lm -DP=10883; taskset --cpu-list 0 ./main.out 1 10000
+# debug
+rm -f main.out; gcc -o main.out main.c -march=native -O3 -lcpucycles -lm -DP=10883 -DDEBUG=1; taskset --cpu-list 0 ./main.out 1 1
 
 */
